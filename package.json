@@ -1,0 +1,64 @@
+{
+  "name": "windsurf-chat-open",
+  "displayName": "WindsurfChatOpen",
+  "description": "开源版 WindsurfChat - 让 AI 停下来听你说话",
+  "version": "1.0.0",
+  "publisher": "windsurf-chat-open",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "windsurfChatOpenPanel",
+          "title": "WindsurfChatOpen",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "windsurfChatOpenPanel": [
+        {
+          "type": "webview",
+          "id": "windsurfChatOpen.panel",
+          "name": "对话面板"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "windsurfChatOpen.focus",
+        "title": "WindsurfChatOpen: 聚焦面板"
+      },
+      {
+        "command": "windsurfChatOpen.setup",
+        "title": "WindsurfChatOpen: 初始化工作区"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "windsurfChatOpen.focus",
+        "key": "ctrl+shift+w",
+        "mac": "cmd+shift+w"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0"
+  }
+}

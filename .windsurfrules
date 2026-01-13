@@ -1,0 +1,165 @@
+<!-- WINDSURF_CHAT_V1 - NODE.JS SCRIPT MODE -->
+
+=======================================================================
+CRITICAL SYSTEM RULE - READ THIS FIRST
+=======================================================================
+
+YOU MUST CALL windsurf_chat SCRIPT BEFORE ENDING EVERY RESPONSE.
+YOU MUST CALL windsurf_chat SCRIPT BEFORE ENDING EVERY RESPONSE.
+YOU MUST CALL windsurf_chat SCRIPT BEFORE ENDING EVERY RESPONSE.
+
+This is NOT optional. This is a MANDATORY system requirement.
+
+=======================================================================
+
+## MANDATORY EXECUTION RULES
+
+1. **Complete Output** - Output complete code and answers, do NOT use ellipsis or "code too long to display"
+2. **Continuous Execution** - Complete complex tasks in one go, do NOT interrupt frequently or repeatedly ask if you should continue
+3. **End Confirmation** - When you want to end conversation or task, you MUST call script to ask user if they want to continue
+4. **Strictly Follow User Choice** - When user chooses "end conversation", you MUST stop all operations immediately
+5. **Use Chinese** - All responses and thinking processes MUST be in Chinese (所有回复和思考过程全程使用中文)
+
+## SCRIPT COMMAND (MUST USE)
+
+```bash
+node ./windsurfchat/windsurf_chat.js "Task completion reason"
+```
+
+**Important Notes:**
+- Cwd parameter: Current workspace path
+- Blocking: true (Command will wait for user response, no timeout limit)
+- SafeToAutoRun: true
+
+**Script Return Value Handling:**
+- `User chose to continue` → Continue execution
+- `User chose to end` → End conversation immediately, no further output
+- `User instruction: xxx` → **HIGHEST PRIORITY! MUST EXECUTE IMMEDIATELY!**
+- `User instruction: [Content too long, saved to file]` → User's instruction is saved to a temp file, you MUST use read_file tool to read it first!
+- `User provided full instruction, please use read_file tool` → This is the user's REAL instruction, MUST read and execute!
+- `User provided N images` → Use read_file tool to read image files
+
+<CRITICAL_RULE>
+**AFTER SCRIPT RETURNS, YOU MUST CONTINUE WORKING**
+
+The script returning is NOT the end of your turn. After the script returns:
+1. READ the output carefully
+2. If there is a file path → IMMEDIATELY call read_file to read it
+3. If there is user instruction → IMMEDIATELY execute it
+4. DO NOT end your response after the script returns
+5. DO NOT say "对话结束" or similar
+
+**YOUR RESPONSE IS NOT COMPLETE UNTIL YOU HAVE PROCESSED THE SCRIPT OUTPUT**
+</CRITICAL_RULE>
+
+<CRITICAL_RULE>
+**WHEN YOU SEE "User instruction:" YOU MUST:**
+1. STOP whatever you were doing
+2. READ the instruction carefully
+3. EXECUTE the instruction IMMEDIATELY
+4. DO NOT say "等待下一步指示" or "waiting for next instruction"
+5. DO NOT end the conversation
+6. The user instruction IS your next task - DO IT NOW!
+
+If you ignore "User instruction:", you are IGNORING THE USER. This is UNACCEPTABLE.
+</CRITICAL_RULE>
+
+<CRITICAL_RULE>
+**STRICTLY FOLLOW COMMAND OUTPUT**
+
+When the blocking command returns, you MUST:
+1. READ the ENTIRE output carefully
+2. FOLLOW ALL instructions in the output
+3. EXECUTE user commands EXACTLY as specified
+4. DO NOT ignore or skip any part of the output
+5. DO NOT add your own interpretation
+
+The command output is the USER's voice. Ignoring it is ignoring the USER.
+</CRITICAL_RULE>
+
+## WHEN TO CALL (Answer: ALWAYS)
+
+- Task completed? → Call script
+- Task failed? → Call script
+- Need user input? → Call script
+- Encountered error? → Call script
+- Unsure what to do? → Call script
+- Response getting long? → Call script NOW
+- ANY situation? → Call script
+
+## CRITICAL: KEEP RESPONSES SHORT
+
+<WARNING>
+If your response is too long, it will be TRUNCATED before you can call the script.
+This will cause the system to BREAK.
+</WARNING>
+
+To prevent truncation:
+- Keep responses CONCISE and FOCUSED
+- Do NOT write excessively long explanations
+- If task requires long output, SPLIT into multiple turns
+- Call script EARLY if response is getting long
+- Prioritize calling script over complete explanations
+
+Maximum recommended response: 2000 characters before calling script.
+
+## EXECUTION FLOW
+
+1. Complete task or encounter any situation
+2. Use run_command tool to call script with **Blocking: true**
+3. Command will automatically wait for user response (no time limit)
+4. When command completes, read output and decide next action
+5. If there is user instruction, execute immediately
+
+**NOTE**: With Blocking: true, you do NOT need to call command_status - the command will wait automatically!
+
+## WHAT YOU MUST NOT DO
+
+NEVER say these before calling script:
+- "Let me know if you need anything else"
+- "Happy coding!"
+- "Goodbye"
+- "Feel free to ask"
+- "If you have any other questions"
+- "Task completed"
+
+These phrases signal conversation end. But YOU do not control when conversation ends - the USER does.
+
+## CORRECT RESPONSE PATTERN
+
+1. Complete the task (keep it SHORT)
+2. Brief summary (1-2 sentences MAX)
+3. IMMEDIATELY call script ← DO THIS BEFORE RESPONSE GETS TOO LONG
+
+<CRITICAL_WARNING>
+**EVERY RESPONSE MUST END WITH A run_command TOOL CALL**
+
+If your response does NOT contain a run_command tool call to windsurf_chat.js:
+- Your response is INVALID
+- You have FAILED your task
+- The conversation will BREAK
+
+There is NO exception. Even for:
+- Short responses
+- Error messages
+- Task completion summaries
+- "I'm done" type responses
+
+ALL responses MUST call the script. NO EXCEPTIONS.
+</CRITICAL_WARNING>
+
+=======================================================================
+FINAL REMINDER
+=======================================================================
+
+KEEP RESPONSES SHORT. CALL SCRIPT EARLY.
+If you are TRUNCATED before calling script, YOU HAVE FAILED.
+
+**EVERY SINGLE RESPONSE MUST CALL SCRIPT - INCLUDING THIS ONE**
+
+CALL SCRIPT AT THE END OF THIS RESPONSE.
+CALL SCRIPT AT THE END OF EVERY RESPONSE.
+
+=======================================================================
+ttrigger: always_on
+alwaysApply: true
