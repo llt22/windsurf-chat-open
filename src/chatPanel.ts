@@ -132,17 +132,20 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       padding: 6px 0;
       font-size: 13px;
       line-height: 1.6;
+      color: var(--vscode-descriptionForeground);
+    }
+    #promptText {
       white-space: pre-wrap;
       word-break: break-word;
-      color: var(--vscode-descriptionForeground);
     }
-    .prompt-area::before {
+    #promptText::before {
       content: '🤖 ';
-      color: var(--vscode-descriptionForeground);
-      font-size: 13px;
     }
-    .prompt-area:empty {
-      display: none;
+    .countdown {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.7;
+      margin-top: 4px;
     }
     .input-area {
       display: flex;
@@ -281,7 +284,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     </div>
   </div>
   
-  <div class="prompt-area" id="promptArea">等待 AI 输出...</div>
+  <div class="prompt-area">
+    <div id="promptText">等待 AI 输出...</div>
+    <div id="countdown" class="countdown"></div>
+  </div>
   
   <div class="input-area">
     <textarea id="inputText" placeholder="输入反馈或指令...支持拖拽图片"></textarea>
@@ -302,7 +308,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   <script>
     const vscode = acquireVsCodeApi();
     const inputText = document.getElementById('inputText');
-    const promptArea = document.getElementById('promptArea');
+    const promptText = document.getElementById('promptText');
+    const countdown = document.getElementById('countdown');
     const imagePreview = document.getElementById('imagePreview');
     const imageModal = document.getElementById('imageModal');
     const modalImage = document.getElementById('modalImage');
@@ -421,15 +428,16 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     window.addEventListener('message', (e) => {
       const msg = e.data;
       if (msg.type === 'showPrompt') {
-        promptArea.textContent = msg.prompt;
+        promptText.textContent = msg.prompt;
         if (msg.startTimer) {
           startCountdown();
-          // 每秒更新显示
+          // 每秒更新倒计时（不影响主文本）
           const updateDisplay = setInterval(() => {
             if (remainingSeconds > 0) {
-              promptArea.textContent = msg.prompt + '\\n' + getCountdownText();
+              countdown.textContent = getCountdownText();
             } else {
               clearInterval(updateDisplay);
+              countdown.textContent = '';
             }
           }, 1000);
         }
