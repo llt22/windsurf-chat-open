@@ -125,13 +125,23 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       max-height: 120px;
       overflow-y: auto;
       margin-bottom: 12px;
-      padding: 8px;
-      background: var(--vscode-input-background);
-      border-radius: 4px;
+      padding: 10px 12px;
+      background: var(--vscode-editor-inactiveSelectionBackground);
+      border-left: 3px solid var(--vscode-focusBorder);
+      border-radius: 0 6px 6px 0;
       font-size: 13px;
-      line-height: 1.5;
+      line-height: 1.6;
       white-space: pre-wrap;
       word-break: break-word;
+      color: var(--vscode-editor-foreground);
+    }
+    .prompt-area::before {
+      content: '🤖 AI';
+      display: block;
+      font-size: 11px;
+      color: var(--vscode-textLink-foreground);
+      margin-bottom: 4px;
+      font-weight: 600;
     }
     .prompt-area:empty {
       display: none;
@@ -187,14 +197,78 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     .image-preview {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 12px;
       margin-top: 8px;
+      padding: 4px;
+    }
+    .image-preview .img-wrapper {
+      position: relative;
+      display: inline-block;
     }
     .image-preview img {
-      max-width: 80px;
-      max-height: 80px;
+      max-width: 60px;
+      max-height: 60px;
       border-radius: 4px;
       border: 1px solid var(--vscode-widget-border);
+      display: block;
+    }
+    .image-preview .img-delete {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 20px;
+      height: 20px;
+      background: #d32f2f;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 10;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: bold;
+      line-height: 1;
+    }
+    .image-preview .img-delete:hover {
+      background: #b71c1c;
+    }
+    .image-preview img {
+      cursor: pointer;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal.show {
+      display: flex;
+    }
+    .modal img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 8px;
+    }
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 30px;
+      cursor: pointer;
+      background: none;
+      border: none;
     }
     .hint {
       font-size: 11px;
@@ -221,22 +295,40 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     </div>
     <div class="hint">Ctrl+Enter 提交 | Esc 结束对话</div>
   </div>
+  
+  <div class="modal" id="imageModal">
+    <button class="modal-close" id="modalClose">×</button>
+    <img id="modalImage" src="" alt="preview">
+  </div>
 
   <script>
     const vscode = acquireVsCodeApi();
     const inputText = document.getElementById('inputText');
     const promptArea = document.getElementById('promptArea');
     const imagePreview = document.getElementById('imagePreview');
+    const imageModal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
     let images = [];
 
     document.getElementById('btnSubmit').onclick = submit;
     document.getElementById('btnContinue').onclick = () => vscode.postMessage({ type: 'continue' });
     document.getElementById('btnEnd').onclick = () => vscode.postMessage({ type: 'end' });
+    document.getElementById('modalClose').onclick = closeModal;
+    imageModal.onclick = (e) => { if (e.target === imageModal) closeModal(); };
+
+    function showModal(src) {
+      modalImage.src = src;
+      imageModal.classList.add('show');
+    }
+    function closeModal() {
+      imageModal.classList.remove('show');
+    }
 
     function submit() {
       const text = inputText.value.trim();
-      if (text || images.length > 0) {
-        vscode.postMessage({ type: 'submit', text, images });
+      const validImages = images.filter(img => img !== null);
+      if (text || validImages.length > 0) {
+        vscode.postMessage({ type: 'submit', text, images: validImages });
         inputText.value = '';
         images = [];
         imagePreview.innerHTML = '';
@@ -280,12 +372,31 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target.result;
+        const index = images.length;
         images.push(dataUrl);
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'img-wrapper';
+        
         const img = document.createElement('img');
         img.src = dataUrl;
-        imagePreview.appendChild(img);
+        img.onclick = () => showModal(dataUrl);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'img-delete';
+        deleteBtn.textContent = '×';
+        deleteBtn.onclick = (e) => { e.stopPropagation(); removeImage(index, wrapper); };
+        
+        wrapper.appendChild(img);
+        wrapper.appendChild(deleteBtn);
+        imagePreview.appendChild(wrapper);
       };
       reader.readAsDataURL(file);
+    }
+
+    function removeImage(index, wrapper) {
+      images[index] = null;
+      wrapper.remove();
     }
 
     window.addEventListener('message', (e) => {
