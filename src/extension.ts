@@ -128,7 +128,7 @@ function handleRequest(data: { prompt: string; requestId: string }, res: http.Se
       pendingCallback({ action: 'continue', text: '', images: [] });
       pendingCallback = null;
     }
-  }, 30 * 60 * 1000);
+  }, 5 * 60 * 1000);
 }
 
 function setupGlobalFiles(context: vscode.ExtensionContext) {
