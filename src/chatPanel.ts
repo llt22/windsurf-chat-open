@@ -147,6 +147,27 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       opacity: 0.7;
       margin-top: 4px;
     }
+    .waiting-indicator {
+      display: none;
+      background: var(--vscode-inputValidation-warningBackground, #5a4a00);
+      border: 1px solid var(--vscode-inputValidation-warningBorder, #ff0);
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .waiting-indicator.show {
+      display: block;
+    }
+    .waiting-indicator-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--vscode-inputValidation-warningForeground, #fff);
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
     .input-area {
       display: flex;
       flex-direction: column;
@@ -284,6 +305,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     </div>
   </div>
   
+  <div class="waiting-indicator" id="waitingIndicator">
+    <span class="waiting-indicator-text">✨ AI 等待你的输入...</span>
+  </div>
+  
   <div class="prompt-area">
     <div id="promptText">等待 AI 输出...</div>
     <div id="countdown" class="countdown"></div>
@@ -312,6 +337,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     const imagePreview = document.getElementById('imagePreview');
     const imageModal = document.getElementById('imageModal');
     const modalImage = document.getElementById('modalImage');
+    const waitingIndicator = document.getElementById('waitingIndicator');
     let images = [];
 
     document.getElementById('btnSubmit').onclick = submit;
@@ -330,6 +356,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     function submit() {
       const text = inputText.value.trim();
       const validImages = images.filter(img => img !== null);
+      waitingIndicator.classList.remove('show');
       if (text || validImages.length > 0) {
         vscode.postMessage({ type: 'submit', text, images: validImages });
         inputText.value = '';
@@ -427,6 +454,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       const msg = e.data;
       if (msg.type === 'showPrompt') {
         promptText.textContent = msg.prompt;
+        waitingIndicator.classList.add('show');
+        inputText.focus();
         if (msg.startTimer) {
           startCountdown();
           // 每秒更新倒计时（不影响主文本）
