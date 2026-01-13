@@ -38,6 +38,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         case 'submit':
           this._handleSubmit(message.text, message.images || []);
           break;
+        case 'updateTimeoutMessage':
+          // 保存到配置
+          vscode.workspace.getConfiguration('windsurfChatOpen').update('timeoutMessage', message.message, true);
+          break;
       }
     });
   }
@@ -273,6 +277,32 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       background: none;
       border: none;
     }
+    .timeout-config {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: var(--vscode-input-background);
+      border-radius: 4px;
+    }
+    .timeout-config label {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      white-space: nowrap;
+    }
+    .timeout-config input {
+      flex: 1;
+      padding: 4px 8px;
+      border: 1px solid var(--vscode-input-border);
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .timeout-config input:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+    }
     .hint {
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
@@ -290,6 +320,11 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   </div>
   
   <div class="prompt-area" id="promptArea">等待 AI 输出...</div>
+  
+  <div class="timeout-config">
+    <label>⏱️ 超时消息：</label>
+    <input type="text" id="timeoutMessage" placeholder="用户还在思考中，请继续等待..." />
+  </div>
   
   <div class="input-area">
     <textarea id="inputText" placeholder="输入反馈或指令...支持拖拽图片"></textarea>
@@ -314,7 +349,18 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     const imagePreview = document.getElementById('imagePreview');
     const imageModal = document.getElementById('imageModal');
     const modalImage = document.getElementById('modalImage');
+    const timeoutMessageInput = document.getElementById('timeoutMessage');
     let images = [];
+
+    // 加载保存的超时消息
+    const state = vscode.getState() || {};
+    timeoutMessageInput.value = state.timeoutMessage || '用户还在思考中，请继续等待...';
+
+    // 保存超时消息
+    timeoutMessageInput.addEventListener('input', () => {
+      vscode.setState({ ...state, timeoutMessage: timeoutMessageInput.value });
+      vscode.postMessage({ type: 'updateTimeoutMessage', message: timeoutMessageInput.value });
+    });
 
     document.getElementById('btnSubmit').onclick = submit;
     document.getElementById('btnContinue').onclick = () => vscode.postMessage({ type: 'continue' });
