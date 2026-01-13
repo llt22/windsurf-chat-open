@@ -3,3 +3,4 @@ dist/
 *.vsix
 .vscode-test/
 .idea/
+.windsurf_chat_port

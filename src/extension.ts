@@ -147,10 +147,6 @@ function setupGlobalFiles(context: vscode.ExtensionContext) {
     fs.copyFileSync(scriptSrc, scriptDest);
   }
 
-  // 写入端口文件到全局目录
-  const portFile = path.join(globalDir, 'port');
-  fs.writeFileSync(portFile, String(httpServerPort));
-
   console.log(`[WindsurfChatOpen] 全局文件已设置: ${globalDir}`);
 }
 
@@ -167,15 +163,16 @@ function setupWorkspace(context: vscode.ExtensionContext) {
   for (const folder of folders) {
     const workspacePath = folder.uri.fsPath;
 
+    // 写入端口文件到工作区目录（每个工作区独立端口）
+    const portFile = path.join(workspacePath, '.windsurf_chat_port');
+    fs.writeFileSync(portFile, String(httpServerPort));
+
     // 生成 .windsurfrules（使用全局脚本路径）
     const rulesDest = path.join(workspacePath, '.windsurfrules');
     if (!fs.existsSync(rulesDest)) {
       const rulesContent = generateRulesContent(scriptPath);
       fs.writeFileSync(rulesDest, rulesContent);
     }
-
-    // 自动添加到 .gitignore（只需忽略 .windsurfrules 如果用户不想提交）
-    // 但通常 .windsurfrules 应该提交，所以不添加到 gitignore
   }
 
   vscode.window.showInformationMessage('WindsurfChatOpen 工作区初始化完成');
