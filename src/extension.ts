@@ -123,10 +123,11 @@ function handleRequest(data: { prompt: string; requestId: string }, res: http.Se
     res.end(JSON.stringify(response));
   };
 
+  // 5 分钟后自动发送"继续等待"消息
   setTimeout(() => {
-    if (pendingCallback) {
-      pendingCallback({ action: 'continue', text: '', images: [] });
-      pendingCallback = null;
+    if (pendingCallback && panelProvider) {
+      // 模拟用户发送消息
+      panelProvider.autoSubmit('用户还在思考中，请继续等待...');
     }
   }, 5 * 60 * 1000);
 }

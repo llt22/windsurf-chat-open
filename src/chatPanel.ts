@@ -44,9 +44,17 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
   showPrompt(prompt: string) {
     if (this._view) {
-      this._view.webview.postMessage({ type: 'showPrompt', prompt });
+      this._view.webview.postMessage({ type: 'showPrompt', prompt, startTimer: true });
       this._view.show?.(true);
     }
+  }
+
+  autoSubmit(text: string) {
+    this._onUserResponse.fire({
+      action: 'instruction',
+      text,
+      images: []
+    });
   }
 
   private _handleSubmit(text: string, images: string[]) {
@@ -397,10 +405,42 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       wrapper.remove();
     }
 
+    let countdownInterval;
+    let remainingSeconds = 5 * 60;
+
+    function startCountdown() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      remainingSeconds = 5 * 60;
+      
+      countdownInterval = setInterval(() => {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
+    }
+
+    function getCountdownText() {
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+      return \`⏱️ \${minutes}:\${seconds.toString().padStart(2, '0')}\`;
+    }
+
     window.addEventListener('message', (e) => {
       const msg = e.data;
       if (msg.type === 'showPrompt') {
         promptArea.textContent = msg.prompt;
+        if (msg.startTimer) {
+          startCountdown();
+          // 每秒更新显示
+          const updateDisplay = setInterval(() => {
+            if (remainingSeconds > 0) {
+              promptArea.textContent = msg.prompt + '\\n' + getCountdownText();
+            } else {
+              clearInterval(updateDisplay);
+            }
+          }, 1000);
+        }
       }
     });
   </script>
