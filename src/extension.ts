@@ -5,18 +5,15 @@ import * as path from 'path';
 import * as os from 'os';
 import { ChatPanelProvider } from './chatPanel';
 
-const GLOBAL_DIR_NAME = '.windsurf-chat-open';
-const DEFAULT_PORT = 34500;
-const MAX_PORT_RETRIES = 10;
+const LOCAL_DIR_NAME = '.windsurfchatopen';
+const PORT_RANGE_START = 34500;
+const PORT_RANGE_END = 35500;
+const MAX_PORT_RETRIES = 50;
 
 let httpServer: http.Server | null = null;
 let httpServerPort = 0;
 let pendingCallback: ((response: any) => void) | null = null;
 let panelProvider: ChatPanelProvider | null = null;
-
-function getGlobalDir(): string {
-  return path.join(os.homedir(), GLOBAL_DIR_NAME);
-}
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('[WindsurfChatOpen] 插件激活中...');
@@ -83,15 +80,18 @@ function startHttpServer(context: vscode.ExtensionContext) {
     }
   });
 
-  // 固定端口 + 自动重试
-  tryListenPort(DEFAULT_PORT, 0, context);
+  // 随机端口 + 自动重试
+  const randomPort = PORT_RANGE_START + Math.floor(Math.random() * (PORT_RANGE_END - PORT_RANGE_START));
+  tryListenPort(randomPort, 0, context);
 }
 
 function tryListenPort(port: number, retryCount: number, context: vscode.ExtensionContext) {
   httpServer!.once('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE' && retryCount < MAX_PORT_RETRIES) {
-      console.log(`[WindsurfChatOpen] 端口 ${port} 被占用，尝试 ${port + 1}`);
-      tryListenPort(port + 1, retryCount + 1, context);
+      // 随机选择新端口避免冲突
+      const nextPort = PORT_RANGE_START + Math.floor(Math.random() * (PORT_RANGE_END - PORT_RANGE_START));
+      console.log(`[WindsurfChatOpen] 端口 ${port} 被占用，尝试 ${nextPort}`);
+      tryListenPort(nextPort, retryCount + 1, context);
     } else {
       console.error(`[WindsurfChatOpen] 无法启动 HTTP 服务器: ${err.message}`);
     }
@@ -100,7 +100,10 @@ function tryListenPort(port: number, retryCount: number, context: vscode.Extensi
   httpServer!.listen(port, '127.0.0.1', () => {
     httpServerPort = port;
     console.log(`[WindsurfChatOpen] HTTP 服务器启动在端口 ${httpServerPort}`);
-    setupGlobalFiles(context);
+    // 端口启动后自动设置工作区
+    if (vscode.workspace.workspaceFolders?.length) {
+      setupWorkspace(context);
+    }
   });
 
   context.subscriptions.push({
@@ -132,24 +135,6 @@ function handleRequest(data: { prompt: string; requestId: string }, res: http.Se
   }, 30 * 60 * 1000);
 }
 
-function setupGlobalFiles(context: vscode.ExtensionContext) {
-  const globalDir = getGlobalDir();
-
-  // 创建全局目录
-  if (!fs.existsSync(globalDir)) {
-    fs.mkdirSync(globalDir, { recursive: true });
-  }
-
-  // 复制脚本到全局目录
-  const scriptSrc = path.join(context.extensionPath, 'lib', 'windsurf_chat.js');
-  const scriptDest = path.join(globalDir, 'windsurf_chat.js');
-  if (fs.existsSync(scriptSrc)) {
-    fs.copyFileSync(scriptSrc, scriptDest);
-  }
-
-  console.log(`[WindsurfChatOpen] 全局文件已设置: ${globalDir}`);
-}
-
 function setupWorkspace(context: vscode.ExtensionContext) {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders?.length) {
@@ -157,22 +142,35 @@ function setupWorkspace(context: vscode.ExtensionContext) {
     return;
   }
 
-  const globalDir = getGlobalDir();
-  const scriptPath = path.join(globalDir, 'windsurf_chat.js');
+  const scriptSrc = path.join(context.extensionPath, 'lib', 'windsurf_chat.js');
 
   for (const folder of folders) {
     const workspacePath = folder.uri.fsPath;
+    const localDir = path.join(workspacePath, LOCAL_DIR_NAME);
 
-    // 写入端口文件到工作区目录（每个工作区独立端口）
-    const portFile = path.join(workspacePath, '.windsurf_chat_port');
+    // 创建项目级目录
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+
+    // 复制脚本到项目目录
+    const scriptDest = path.join(localDir, 'windsurf_chat.js');
+    if (fs.existsSync(scriptSrc)) {
+      fs.copyFileSync(scriptSrc, scriptDest);
+    }
+
+    // 写入端口文件到项目目录
+    const portFile = path.join(localDir, 'port');
     fs.writeFileSync(portFile, String(httpServerPort));
 
-    // 生成 .windsurfrules（使用全局脚本路径）
+    // 生成 .windsurfrules（使用项目内脚本路径）
     const rulesDest = path.join(workspacePath, '.windsurfrules');
     if (!fs.existsSync(rulesDest)) {
-      const rulesContent = generateRulesContent(scriptPath);
+      const rulesContent = generateRulesContent(scriptDest);
       fs.writeFileSync(rulesDest, rulesContent);
     }
+
+    console.log(`[WindsurfChatOpen] 工作区已设置: ${localDir}`);
   }
 
   vscode.window.showInformationMessage('WindsurfChatOpen 工作区初始化完成');
