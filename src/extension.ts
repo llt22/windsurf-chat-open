@@ -8,6 +8,8 @@ import { ChatPanelProvider } from './chatPanel';
 const LOCAL_DIR_NAME = '.windsurfchatopen';
 const BASE_PORT = 34500;
 const MAX_PORT_ATTEMPTS = 100;
+const REQUEST_TIMEOUT_MS = 30 * 60 * 1000; // 30分钟
+const TEMP_FILE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24小时
 
 let httpServer: http.Server | null = null;
 let httpServerPort = 0;
@@ -16,8 +18,7 @@ let panelProvider: ChatPanelProvider | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   try {
-    console.log('[WindsurfChatOpen] ========== 插件激活开始 ==========');
-    vscode.window.showInformationMessage('WindsurfChatOpen 插件正在激活...');
+    console.log('[WindsurfChatOpen] 插件激活中...');
 
     // 清理超过 24 小时的旧临时文件
     cleanOldTempFiles();
@@ -52,10 +53,6 @@ export function activate(context: vscode.ExtensionContext) {
       })
     );
 
-    if (vscode.workspace.workspaceFolders?.length) {
-      setupWorkspace(context);
-    }
-
     console.log('[WindsurfChatOpen] 插件激活完成');
   } catch (error) {
     console.error('[WindsurfChatOpen] 插件激活失败:', error);
@@ -88,13 +85,10 @@ function startHttpServer(context: vscode.ExtensionContext) {
   console.log(`[WindsurfChatOpen] 生成随机端口: ${targetPort}`);
 
   httpServer = http.createServer((req, res) => {
-    console.log(`[WindsurfChatOpen] HTTP 请求: ${req.method} ${req.url}`);
-
     if (req.method === 'POST' && req.url === '/request') {
       let body = '';
       req.on('data', chunk => body += chunk);
       req.on('end', () => {
-        console.log(`[WindsurfChatOpen] 收到 POST 数据: ${body.substring(0, 100)}...`);
         try {
           const data = JSON.parse(body);
           handleRequest(data, res);
@@ -105,11 +99,9 @@ function startHttpServer(context: vscode.ExtensionContext) {
         }
       });
     } else if (req.method === 'GET' && req.url === '/health') {
-      console.log(`[WindsurfChatOpen] 健康检查`);
       res.writeHead(200);
       res.end('OK');
     } else {
-      console.log(`[WindsurfChatOpen] 未知路由: ${req.method} ${req.url}`);
       res.writeHead(404);
       res.end('Not Found');
     }
@@ -146,9 +138,7 @@ function tryListenPort(port: number, context: vscode.ExtensionContext, localDir:
         fs.mkdirSync(localDir, { recursive: true });
       }
       fs.writeFileSync(portFile, port.toString(), 'utf-8');
-      console.log(`[WindsurfChatOpen] 端口已写入: ${portFile}`);
-    } catch (e) {
-      console.error(`[WindsurfChatOpen] 写入端口文件失败: ${e}`);
+    } catch {
     }
 
     // 端口启动后自动设置工作区
@@ -173,31 +163,24 @@ function tryListenPort(port: number, context: vscode.ExtensionContext, localDir:
 }
 
 async function handleRequest(data: { prompt: string; requestId: string }, res: http.ServerResponse) {
-  const requestTime = new Date().toISOString();
-  console.log(`[WindsurfChatOpen] ${requestTime} 收到请求: ${data.requestId}, prompt: ${data.prompt}`);
-
-  console.log(`[WindsurfChatOpen] panelProvider 状态: ${panelProvider ? '已初始化' : '未初始化'}`);
+  console.log(`[WindsurfChatOpen] 收到请求: ${data.requestId}`);
 
   if (panelProvider) {
-    console.log(`[WindsurfChatOpen] ${requestTime} 调用 showPrompt: ${data.prompt}`);
     await panelProvider.showPrompt(data.prompt);
-    console.log(`[WindsurfChatOpen] ${new Date().toISOString()} showPrompt 完成，现在设置 pendingCallback`);
   }
 
   pendingCallback = (response) => {
-    console.log(`[WindsurfChatOpen] 用户响应: ${JSON.stringify(response)}`);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response));
   };
 
-  // 30 分钟后超时返回错误（非用户选择）
+  // 超时返回错误（非用户选择）
   setTimeout(() => {
     if (pendingCallback) {
-      console.log(`[WindsurfChatOpen] 超时，返回错误`);
-      pendingCallback({ action: 'error', error: '等待用户响应超时 (30分钟)', text: '', images: [] });
+      pendingCallback({ action: 'error', error: '等待用户响应超时', text: '', images: [] });
       pendingCallback = null;
     }
-  }, 30 * 60 * 1000);
+  }, REQUEST_TIMEOUT_MS);
 }
 
 function setupWorkspace(context: vscode.ExtensionContext) {
@@ -226,8 +209,7 @@ function setupWorkspace(context: vscode.ExtensionContext) {
 
     // 生成 .windsurfrules（使用相对路径）
     const rulesDest = path.join(workspacePath, '.windsurfrules');
-    const relativeScriptPath = `.${path.sep}${LOCAL_DIR_NAME}${path.sep}windsurf_chat.js`;
-    const rulesContent = generateRulesContent(relativeScriptPath);
+    const rulesContent = generateRulesContent();
     const ruleMarker = '<!-- WINDSURF_CHAT_OPEN_V1 -->';
 
     if (!fs.existsSync(rulesDest)) {
@@ -262,9 +244,8 @@ function setupWorkspace(context: vscode.ExtensionContext) {
   vscode.window.showInformationMessage('WindsurfChatOpen 工作区初始化完成');
 }
 
-function generateRulesContent(scriptPath: string): string {
-  // 使用跨平台兼容的相对路径格式
-  const normalizedPath = './.windsurfchatopen/windsurf_chat.js';
+function generateRulesContent(): string {
+  const scriptPath = './.windsurfchatopen/windsurf_chat.js';
 
   return `<!-- WINDSURF_CHAT_OPEN_V1 -->
 
@@ -280,7 +261,7 @@ This is NOT optional. This is a MANDATORY system requirement.
 ## SCRIPT COMMAND (MUST USE)
 
 \`\`\`bash
-node "${normalizedPath}" "Task completion reason"
+node "${scriptPath}" "Task completion reason"
 \`\`\`
 
 **Important Notes:**
@@ -318,9 +299,8 @@ alwaysApply: true
 
 function cleanOldTempFiles() {
   const tempDir = os.tmpdir();
-  const maxAge = 24 * 60 * 60 * 1000; // 24 小时
   const now = Date.now();
-  const prefixes = ['wsc_img_', 'windsurf_chat_open_'];
+  const prefixes = ['wsc_img_', 'windsurf_chat_instruction_'];
 
   try {
     const files = fs.readdirSync(tempDir);
@@ -332,7 +312,7 @@ function cleanOldTempFiles() {
       const filePath = path.join(tempDir, file);
       try {
         const stat = fs.statSync(filePath);
-        if (now - stat.mtimeMs > maxAge) {
+        if (now - stat.mtimeMs > TEMP_FILE_MAX_AGE_MS) {
           fs.unlinkSync(filePath);
           cleaned++;
         }
