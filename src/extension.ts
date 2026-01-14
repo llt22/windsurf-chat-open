@@ -163,9 +163,10 @@ function setupWorkspace(context: vscode.ExtensionContext) {
     const portFile = path.join(localDir, 'port');
     fs.writeFileSync(portFile, String(httpServerPort));
 
-    // 生成 .windsurfrules（使用项目内脚本路径）
+    // 生成 .windsurfrules（使用相对路径）
     const rulesDest = path.join(workspacePath, '.windsurfrules');
-    const rulesContent = generateRulesContent(scriptDest);
+    const relativeScriptPath = `.${path.sep}${LOCAL_DIR_NAME}${path.sep}windsurf_chat.js`;
+    const rulesContent = generateRulesContent(relativeScriptPath);
     const ruleMarker = '<!-- WINDSURF_CHAT_OPEN_V1 -->';
     
     if (!fs.existsSync(rulesDest)) {
@@ -201,8 +202,8 @@ function setupWorkspace(context: vscode.ExtensionContext) {
 }
 
 function generateRulesContent(scriptPath: string): string {
-  // 转换路径分隔符为正斜杠（跨平台兼容）
-  const normalizedPath = scriptPath.replace(/\\/g, '/');
+  // 使用跨平台兼容的相对路径格式
+  const normalizedPath = './.windsurfchatopen/windsurf_chat.js';
   
   return `<!-- WINDSURF_CHAT_OPEN_V1 -->
 

@@ -18,6 +18,8 @@
 遵循工作区规则，每次回复结束前调用脚本
 ```
 
+**脚本路径**：`.\.windsurfchatopen\windsurf_chat.js`（Windows）或 `./.windsurfchatopen/windsurf_chat.js`（Mac/Linux）
+
 配置完成后，AI 会在每次回复结束时自动调用插件。
 
 ## 使用
