@@ -1,47 +1,47 @@
 # WindsurfChat Open
 
-🎉 免费开源 · 安全可控 · 无需配置
-
 让 AI 停下来听你说话 - 随时介入对话，精准反馈指令
 
-## 安装
+## 核心特性
 
-1. 从 [Releases](https://github.com/nicepkg/windsurf-chat-open/releases) 下载最新版 `.vsix` 文件
-2. Windsurf/VSCode: `Ctrl+Shift+P` → `Extensions: Install from VSIX...`
-3. 选择下载的 `.vsix` 文件安装
+- **项目级隔离** - 多 IDE / 多项目互不干扰
+- **等待指示器** - 闪烁提示，状态一目了然
+- **支持图片反馈** - 粘贴/拖拽图片到文本框
+- **浅色/深色主题自适应**
 
-## 配置
+## 快速开始
 
-安装后，将以下内容添加到 **全局提示词**
+### 1. 安装插件
+
+从 [Releases](https://github.com/nicepkg/windsurf-chat-open/releases) 下载 `.vsix` 文件，然后：
+
+```
+Ctrl+Shift+P → Extensions: Install from VSIX...
+```
+
+### 2. 配置全局提示词
+
+在 Windsurf **全局提示词** 中添加：
 
 ```
 遵循工作区规则，每次回复结束前调用脚本
 ```
 
-配置完成后，AI 会在每次回复结束时自动调用插件。
+### 3. 打开面板
+点击右下角 `windsurf-chat-open`打开面板
+![img.png](img.png)
 
-## 使用
+### 4. 开始使用
 
-1. **AI 等待时**：面板显示闪烁提示 "✨ AI 等待你的输入..."
-2. **输入反馈**：在文本框输入你的指令
-3. **添加图片**：粘贴（Ctrl+V）或拖拽图片到文本框
-4. **提交**：点击"提交"或按 `Ctrl+Enter`（空提交 = 继续）
-5. **结束对话**：点击"结束对话"或按 `Esc`
+## 说明
 
-### 快捷键
+**文件创建**：插件会在项目根目录自动创建：
+- `.windsurfchatopen/` 文件夹 - 存储核心脚本和会话数据
+- `.windsurfrules` 文件 - 工作区规则文件，AI 会自动读取并遵循其中的规则
 
-- `Ctrl+Shift+W` (Mac: `Cmd+Shift+W`) - 打开插件面板
-- `Ctrl+Enter` - 提交反馈
-- `Esc` - 结束对话
+如果是 git 项目，上述文件会自动添加到 `.gitignore`，不会影响版本控制。
 
-## 特性
-
-- ✅ **项目级隔离** - 多 IDE / 多项目互不干扰
-- ✅ **等待指示器** - 闪烁提示，状态一目了然
-- ✅ **支持图片** - 粘贴/拖拽/预览/删除
-- ✅ **自动配置** - 自动创建 `.windsurfchatopen/` 目录和 `.gitignore`
-- ✅ **30 分钟超时保护**
-- ✅ **浅色/深色主题自适应**
+**超时保护**：AI 等待超过 30 分钟会自动超时，避免长时间占用。
 
 ## 开源协议
 
