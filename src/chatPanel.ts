@@ -300,7 +300,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   <div class="header">
     <h1>WindsurfChat Open</h1>
     <div class="header-meta">
-      <span class="version">v1.1.5</span>
+      <span class="version">v1.2.0</span>
       <span class="slogan">🎉 免费开源 · 安全可控 · 无需配置</span>
     </div>
   </div>

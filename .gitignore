@@ -3,4 +3,6 @@ dist/
 *.vsix
 .vscode-test/
 .idea/
+# WindsurfChatOpen
 .windsurfchatopen/
+.windsurfrules

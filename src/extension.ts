@@ -6,9 +6,7 @@ import * as os from 'os';
 import { ChatPanelProvider } from './chatPanel';
 
 const LOCAL_DIR_NAME = '.windsurfchatopen';
-const PORT_RANGE_START = 34500;
-const PORT_RANGE_END = 35500;
-const MAX_PORT_RETRIES = 50;
+const FIXED_PORT = 34500;
 
 let httpServer: http.Server | null = null;
 let httpServerPort = 0;
@@ -80,21 +78,14 @@ function startHttpServer(context: vscode.ExtensionContext) {
     }
   });
 
-  // 随机端口 + 自动重试
-  const randomPort = PORT_RANGE_START + Math.floor(Math.random() * (PORT_RANGE_END - PORT_RANGE_START));
-  tryListenPort(randomPort, 0, context);
+  // 使用固定端口
+  tryListenPort(FIXED_PORT, context);
 }
 
-function tryListenPort(port: number, retryCount: number, context: vscode.ExtensionContext) {
+function tryListenPort(port: number, context: vscode.ExtensionContext) {
   httpServer!.once('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE' && retryCount < MAX_PORT_RETRIES) {
-      // 随机选择新端口避免冲突
-      const nextPort = PORT_RANGE_START + Math.floor(Math.random() * (PORT_RANGE_END - PORT_RANGE_START));
-      console.log(`[WindsurfChatOpen] 端口 ${port} 被占用，尝试 ${nextPort}`);
-      tryListenPort(nextPort, retryCount + 1, context);
-    } else {
-      console.error(`[WindsurfChatOpen] 无法启动 HTTP 服务器: ${err.message}`);
-    }
+    console.error(`[WindsurfChatOpen] 无法启动 HTTP 服务器: ${err.message}`);
+    vscode.window.showErrorMessage(`WindsurfChatOpen: 端口 ${port} 被占用，请关闭其他实例`);
   });
 
   httpServer!.listen(port, '127.0.0.1', () => {
@@ -116,7 +107,16 @@ function tryListenPort(port: number, retryCount: number, context: vscode.Extensi
   });
 }
 
-function handleRequest(data: { prompt: string; requestId: string }, res: http.ServerResponse) {
+function handleRequest(data: { prompt: string; requestId: string; workspacePath?: string }, res: http.ServerResponse) {
+  // 验证工作区路径匹配
+  const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (data.workspacePath && currentWorkspace && path.normalize(data.workspacePath) !== path.normalize(currentWorkspace)) {
+    // 工作区不匹配，忽略请求
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Workspace mismatch' }));
+    return;
+  }
+
   if (panelProvider) {
     panelProvider.showPrompt(data.prompt);
   }
@@ -158,10 +158,6 @@ function setupWorkspace(context: vscode.ExtensionContext) {
     if (fs.existsSync(scriptSrc)) {
       fs.copyFileSync(scriptSrc, scriptDest);
     }
-
-    // 写入端口文件到项目目录
-    const portFile = path.join(localDir, 'port');
-    fs.writeFileSync(portFile, String(httpServerPort));
 
     // 生成 .windsurfrules（使用相对路径）
     const rulesDest = path.join(workspacePath, '.windsurfrules');
