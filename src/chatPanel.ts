@@ -145,7 +145,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
       opacity: 0.7;
-      margin-top: 4px;
+      margin-left: 8px;
     }
     .waiting-indicator {
       display: none;
@@ -307,11 +307,11 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   
   <div class="waiting-indicator" id="waitingIndicator">
     <span class="waiting-indicator-text">✨ AI 等待你的输入...</span>
+    <span id="countdown" class="countdown"></span>
   </div>
   
   <div class="prompt-area">
     <div id="promptText">等待 AI 输出...</div>
-    <div id="countdown" class="countdown"></div>
   </div>
   
   <div class="input-area">
