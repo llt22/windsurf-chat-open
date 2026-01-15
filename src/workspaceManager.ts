@@ -19,17 +19,11 @@ export class WorkspaceManager {
             const workspacePath = folder.uri.fsPath;
             const localDir = path.join(workspacePath, LOCAL_DIR_NAME);
 
-            // Create project-level directory
-            if (!fs.existsSync(localDir)) {
-                fs.mkdirSync(localDir, { recursive: true });
+            // Always delete and recreate directory to ensure latest files
+            if (fs.existsSync(localDir)) {
+                fs.rmSync(localDir, { recursive: true, force: true });
             }
-
-            // Remove old .js script if exists (migration from v1.6.0 to v1.6.1+)
-            const oldScriptPath = path.join(localDir, 'windsurf_chat.js');
-            if (fs.existsSync(oldScriptPath)) {
-                fs.unlinkSync(oldScriptPath);
-                console.log(`[WindsurfChatOpen] Removed old script: ${oldScriptPath}`);
-            }
+            fs.mkdirSync(localDir, { recursive: true });
 
             // Copy script to project directory
             const scriptDest = path.join(localDir, 'windsurf_chat.cjs');
