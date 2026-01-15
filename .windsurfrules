@@ -12,7 +12,7 @@ This is NOT optional. This is a MANDATORY system requirement.
 ## SCRIPT COMMAND (MUST USE)
 
 ```bash
-node "./.windsurfchatopen/windsurf_chat.js" "Task completion reason"
+node "./.windsurfchatopen/windsurf_chat.cjs" "Task completion reason"
 ```
 
 **Important Notes:**
