@@ -53,35 +53,12 @@ export class WorkspaceManager {
         const rulesDest = path.join(workspacePath, '.windsurfrules');
         const rulesContent = this.generateRulesContent();
 
-        if (!fs.existsSync(rulesDest)) {
-            // File doesn't exist, create new
-            fs.writeFileSync(rulesDest, rulesContent);
-        } else {
-            const existingContent = fs.readFileSync(rulesDest, 'utf-8');
-            if (!existingContent.includes(RULE_MARKER)) {
-                // File exists but no plugin rules, append
-                fs.appendFileSync(rulesDest, '\n\n' + rulesContent);
-            } else {
-                // File exists with plugin rules, replace the plugin section
-                const markerStart = existingContent.indexOf(RULE_MARKER);
-                const triggerMarker = 'alwaysApply: true';
-                const triggerPos = existingContent.indexOf(triggerMarker, markerStart);
-                
-                if (triggerPos !== -1) {
-                    // Find the end of the plugin rules block
-                    const endOfBlock = existingContent.indexOf('\n', triggerPos + triggerMarker.length);
-                    
-                    if (endOfBlock !== -1) {
-                        // Replace the old plugin rules with new ones
-                        const before = existingContent.substring(0, markerStart);
-                        const after = existingContent.substring(endOfBlock + 1);
-                        const newContent = before + rulesContent + (after ? '\n' + after : '');
-                        fs.writeFileSync(rulesDest, newContent);
-                        console.log(`[WindsurfChatOpen] Updated .windsurfrules with latest rules`);
-                    }
-                }
-            }
+        // Always delete and recreate to ensure latest rules
+        if (fs.existsSync(rulesDest)) {
+            fs.unlinkSync(rulesDest);
         }
+        fs.writeFileSync(rulesDest, rulesContent);
+        console.log(`[WindsurfChatOpen] Created/Updated .windsurfrules`);
     }
 
     private updateGitignore(workspacePath: string) {
