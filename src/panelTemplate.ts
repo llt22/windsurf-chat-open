@@ -262,9 +262,15 @@ export function getPanelHtml(version: string = '0.0.0'): string {
     const waitingIndicator = document.getElementById('waitingIndicator');
     let images = [];
     let currentRequestId = '';
+    let isActive = false; // 新增: 追踪当前是否有活跃请求
 
     document.getElementById('btnSubmit').onclick = submit;
     document.getElementById('btnEnd').onclick = () => {
+      if (!isActive) {
+        console.log('[WindsurfChat WebView] No active request to end');
+        return;
+      }
+      isActive = false;
       waitingIndicator.classList.remove('show');
       vscode.postMessage({ type: 'end', requestId: currentRequestId });
     };
@@ -280,6 +286,11 @@ export function getPanelHtml(version: string = '0.0.0'): string {
     }
 
     function submit() {
+      if (!isActive) {
+        console.log('[WindsurfChat WebView] No active request to submit');
+        return;
+      }
+      isActive = false; // 提交后立即标记为非活跃，防止重复提交
       waitingIndicator.classList.remove('show');
       const text = inputText.value.trim();
       const validImages = images.filter(img => img !== null);
@@ -379,6 +390,7 @@ export function getPanelHtml(version: string = '0.0.0'): string {
       if (msg.type === 'showPrompt') {
         promptText.textContent = msg.prompt;
         currentRequestId = msg.requestId || '';
+        isActive = true; // 新增: 激活请求状态
         waitingIndicator.classList.add('show');
         inputText.focus();
         if (msg.startTimer) {

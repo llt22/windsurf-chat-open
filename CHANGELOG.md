@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.6.3] - 2026-01-20
+
+### 修复
+- **[关键修复]** 修复多轮对话后面板卡住的问题：当新请求到来时，Webview 仍显示旧对话，提交/结束操作无响应。
+- **根本原因**：旧的 pending requests 没有被正确清理，导致新旧请求 ID 不匹配。
+- **解决方案**：
+  - `HttpService`: 新增 `clearAllPendingRequests()` 方法，当新请求到达时自动清理所有旧请求。
+  - `Webview`: 新增 `isActive` 状态标志，防止对过时请求进行操作。
+  - 增强日志记录，便于排查类似问题。
+
 ## [1.6.1] - 2026-01-15
 
 ### 修复

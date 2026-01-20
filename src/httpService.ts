@@ -90,6 +90,26 @@ export class HttpService {
         }
     }
 
+    // 清理所有旧的 pending requests (新请求到来时调用)
+    private clearAllPendingRequests(reason: string = 'New request arrived') {
+        for (const [id, pending] of this.pendingRequests.entries()) {
+            console.log(`[WindsurfChatOpen] Clearing stale request: ${id} (${reason})`);
+            clearTimeout(pending.timer);
+            try {
+                pending.res.writeHead(200, { 'Content-Type': 'application/json' });
+                pending.res.end(JSON.stringify({
+                    action: 'error',
+                    error: reason,
+                    text: '',
+                    images: []
+                }));
+            } catch (e) {
+                // Response may already be sent, ignore
+            }
+        }
+        this.pendingRequests.clear();
+    }
+
     private handleIncomingRequest(req: http.IncomingMessage, res: http.ServerResponse) {
         if (req.method === 'POST' && req.url === '/request') {
             let body = '';
@@ -99,8 +119,12 @@ export class HttpService {
                     const data = JSON.parse(body) as RequestData;
                     const requestId = data.requestId || Date.now().toString();
 
-                    // Clear any existing request with same ID
-                    this.clearPendingRequest(requestId);
+                    // 关键修复: 清理所有旧的 pending requests，而不仅仅是同 ID 的
+                    // 这样可以防止多个请求堆积导致状态不同步
+                    if (this.pendingRequests.size > 0) {
+                        console.log(`[WindsurfChatOpen] New request ${requestId} arrived, clearing ${this.pendingRequests.size} stale request(s)`);
+                        this.clearAllPendingRequests('Superseded by new request');
+                    }
 
                     this.activeRequestId = requestId;
                     await this.onRequest(data);
