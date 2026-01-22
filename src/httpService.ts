@@ -27,9 +27,14 @@ interface ErrorResponse {
 export class HttpService {
     private server: http.Server | null = null;
     private port: number = 0;
-    private pendingRequests: Map<string, { res: http.ServerResponse, timer: NodeJS.Timeout }> = new Map();
+    private pendingRequests: Map<string, {
+        res: http.ServerResponse,
+        timer: NodeJS.Timeout | undefined,
+        createdAt: number
+    }> = new Map();
     private activeRequestId: string | null = null;
     private triedPorts: Set<number> = new Set();
+    private connectionCheckInterval?: NodeJS.Timeout;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -44,9 +49,37 @@ export class HttpService {
         this.cleanupAllPortFiles();
         this.server = http.createServer((req, res) => this.handleIncomingRequest(req, res));
 
+        // 设置服务器超时时间为0（不限制）
+        this.server.timeout = 0;
+        this.server.keepAliveTimeout = 0;
+        this.server.headersTimeout = 0;
+
+        // 设置 TCP Keep-Alive，防止连接被操作系统/防火墙断开
+        this.server.on('connection', (socket) => {
+            socket.setKeepAlive(true, 30000); // 30秒发送一次 TCP keep-alive
+            socket.setTimeout(0); // 不超时
+        });
+
+        // 启动连接状态检测
+        this.startConnectionCheck();
+
         return new Promise((resolve, reject) => {
             this.tryListen(BASE_PORT, 0, resolve, reject);
         });
+    }
+
+    private startConnectionCheck() {
+        // 每30秒检查一次连接状态
+        this.connectionCheckInterval = setInterval(() => {
+            const now = Date.now();
+            for (const [requestId, pending] of this.pendingRequests.entries()) {
+                // 检查响应对象是否还可写
+                if (pending.res.writableEnded || pending.res.destroyed) {
+                    console.log(`[WindsurfChatOpen] Connection closed for request ${requestId}, cleaning up`);
+                    this.clearPendingRequest(requestId, false);
+                }
+            }
+        }, 30000);
     }
 
     private cleanupAllPortFiles() {
@@ -128,6 +161,10 @@ export class HttpService {
     }
 
     private handleIncomingRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+        // 设置连接保活
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('Keep-Alive', 'timeout=0');
+
         if (req.method === 'POST' && req.url === '/request') {
             let body = '';
             let bodySize = 0;
@@ -178,7 +215,7 @@ export class HttpService {
                         }, timeoutMs);
                     }
 
-                    this.pendingRequests.set(requestId, { res, timer: timer! });
+                    this.pendingRequests.set(requestId, { res, timer, createdAt: Date.now() });
 
                 } catch (e) {
                     if (!res.writableEnded) {
@@ -196,8 +233,28 @@ export class HttpService {
                 }
             });
         } else if (req.method === 'GET' && req.url === '/health') {
-            res.writeHead(200);
-            res.end('OK');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                status: 'ok',
+                port: this.port,
+                pendingRequests: this.pendingRequests.size,
+                activeRequestId: this.activeRequestId
+            }));
+        } else if (req.method === 'GET' && req.url === '/status') {
+            // 返回详细状态信息，用于调试
+            const requests = Array.from(this.pendingRequests.entries()).map(([id, pending]) => ({
+                requestId: id,
+                createdAt: pending.createdAt,
+                age: Date.now() - pending.createdAt,
+                hasTimer: !!pending.timer,
+                writable: !pending.res.writableEnded && !pending.res.destroyed
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                port: this.port,
+                activeRequestId: this.activeRequestId,
+                pendingRequests: requests
+            }));
         } else {
             res.writeHead(404);
             res.end('Not Found');
@@ -240,24 +297,47 @@ export class HttpService {
 
     public sendResponse(response: any, requestId?: string) {
         const id = requestId || this.activeRequestId;
-        if (id && this.pendingRequests.has(id)) {
-            const pending = this.pendingRequests.get(id)!;
-            if (!pending.res.writableEnded) {
-                try {
-                    pending.res.writeHead(200, { 'Content-Type': 'application/json' });
-                    pending.res.end(JSON.stringify(response));
-                } catch (e) {
-                    console.error('[WindsurfChatOpen] Failed to send response:', e);
-                }
-            }
+        if (!id || !this.pendingRequests.has(id)) {
+            console.warn(`[WindsurfChatOpen] No pending request found for ID: ${id}`);
+            return;
+        }
+
+        const pending = this.pendingRequests.get(id)!;
+
+        // 检查响应对象是否还可写
+        if (pending.res.writableEnded || pending.res.destroyed) {
+            console.warn(`[WindsurfChatOpen] Response object already closed for request ${id}, connection may have been lost`);
             this.clearPendingRequest(id);
             if (this.activeRequestId === id) {
                 this.activeRequestId = null;
             }
+            return;
+        }
+
+        try {
+            pending.res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Connection': 'keep-alive'
+            });
+            pending.res.end(JSON.stringify(response));
+            console.log(`[WindsurfChatOpen] Response sent successfully for request ${id}`);
+        } catch (e) {
+            console.error(`[WindsurfChatOpen] Failed to send response for request ${id}:`, e);
+        }
+
+        this.clearPendingRequest(id);
+        if (this.activeRequestId === id) {
+            this.activeRequestId = null;
         }
     }
 
     public dispose() {
+        // 停止连接检测
+        if (this.connectionCheckInterval) {
+            clearInterval(this.connectionCheckInterval);
+            this.connectionCheckInterval = undefined;
+        }
+
         this.cleanupAllPortFiles();
         for (const requestId of Array.from(this.pendingRequests.keys())) {
             this.clearPendingRequest(requestId, true, this.createErrorResponse(ERROR_MESSAGES.EXTENSION_DEACTIVATED));

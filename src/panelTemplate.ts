@@ -23,32 +23,35 @@ export function getPanelHtml(version: string = '0.0.0'): string {
     .header {
       margin-bottom: 16px;
     }
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--vscode-editor-background);
+      border-radius: 4px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     .header h1 {
       font-size: 15px;
       font-weight: 600;
-      margin-bottom: 6px;
-    }
-    .header-meta {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
+      margin: 0;
     }
     .version {
       background: var(--vscode-badge-background);
       padding: 2px 6px;
       border-radius: 3px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
     }
-    .port-info {
-      background: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-weight: 600;
-    }
-    .slogan {
-      opacity: 0.8;
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     .prompt-area {
       max-height: 120px;
@@ -215,17 +218,84 @@ export function getPanelHtml(version: string = '0.0.0'): string {
       color: var(--vscode-descriptionForeground);
       margin-top: 4px;
     }
-    .timeout-config {
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      background: transparent;
+      color: var(--vscode-foreground);
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.1s;
+      opacity: 0.7;
+    }
+    .settings-toggle:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+      opacity: 1;
+    }
+    .settings-toggle-icon {
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    .settings-toggle.expanded .settings-toggle-icon {
+      transform: rotate(45deg);
+    }
+    .port-display {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 12px;
       font-size: 12px;
-    }
-    .timeout-config label {
       color: var(--vscode-descriptionForeground);
     }
-    .timeout-config input {
+    .connection-status {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--vscode-testing-iconPassed);
+    }
+    .connection-status.disconnected {
+      background: var(--vscode-testing-iconFailed);
+    }
+    .config-bar {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 12px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 4px;
+      font-size: 12px;
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    }
+    .config-bar.show {
+      display: flex;
+      max-height: 200px;
+      opacity: 1;
+    }
+    .config-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .config-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .config-item label {
+      color: var(--vscode-descriptionForeground);
+    }
+    .config-item input {
       width: 80px;
       padding: 4px 8px;
       border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35));
@@ -234,30 +304,87 @@ export function getPanelHtml(version: string = '0.0.0'): string {
       border-radius: 3px;
       font-size: 12px;
     }
-    .timeout-config input:focus {
+    .config-item input:focus {
       outline: 1px solid var(--vscode-focusBorder);
     }
-    .timeout-config .hint-text {
+    .config-item .hint-text {
       color: var(--vscode-descriptionForeground);
       opacity: 0.7;
+    }
+    .timeout-presets {
+      display: flex;
+      gap: 6px;
+      margin-left: 8px;
+    }
+    .timeout-preset-btn {
+      padding: 2px 8px;
+      font-size: 11px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .timeout-preset-btn:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+    .timeout-preset-btn:active {
+      transform: translateY(1px);
+    }
+    .port-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .connection-status {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--vscode-testing-iconPassed);
+    }
+    .connection-status.disconnected {
+      background: var(--vscode-testing-iconFailed);
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>WindsurfChat Open</h1>
-    <div class="header-meta">
-      <span class="version">v${version}</span>
-      <span class="port-info" id="portInfo">端口: --</span>
-      <span class="slogan">🎉 免费开源 · 安全可控 · 无需配置</span>
+    <div class="header-bar">
+      <div class="header-left">
+        <h1>WindsurfChat Open</h1>
+        <span class="version">v${version}</span>
+      </div>
+      <div class="header-right">
+        <button class="settings-toggle" id="settingsToggle" title="设置">
+          <span class="settings-toggle-icon">⚙️</span>
+        </button>
+        <div class="port-display">
+          <span id="portInfo">端口: --</span>
+          <span class="connection-status" id="connectionStatus"></span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="timeout-config">
-    <label for="timeoutInput">超时时间:</label>
-    <input type="number" id="timeoutInput" min="0" step="1" value="30" />
-    <span>分钟</span>
-    <span class="hint-text">(0=不限制)</span>
+  <div class="config-bar" id="configBar">
+    <div class="config-bar-row">
+      <div class="config-item">
+        <label for="timeoutInput">超时时间:</label>
+        <input type="number" id="timeoutInput" min="0" step="1" value="30" />
+        <span>分钟</span>
+        <span class="hint-text">(0=不限制)</span>
+      </div>
+      <div class="timeout-presets">
+        <button class="timeout-preset-btn" data-minutes="0">不限制</button>
+        <button class="timeout-preset-btn" data-minutes="30">30分钟</button>
+        <button class="timeout-preset-btn" data-minutes="60">1小时</button>
+        <button class="timeout-preset-btn" data-minutes="240">4小时</button>
+        <button class="timeout-preset-btn" data-minutes="480">8小时</button>
+      </div>
+    </div>
   </div>
   
   <div class="waiting-indicator" id="waitingIndicator">
@@ -294,12 +421,22 @@ export function getPanelHtml(version: string = '0.0.0'): string {
     const modalImage = document.getElementById('modalImage');
     const waitingIndicator = document.getElementById('waitingIndicator');
     const timeoutInput = document.getElementById('timeoutInput');
+    const connectionStatus = document.getElementById('connectionStatus');
     let images = [];
     let currentRequestId = '';
+    let currentPort = 0;
 
     const MAX_IMAGE_COUNT = 10;
     const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
     let timeoutMinutes = 30; // 默认30分钟
+
+    // 设置展开/收起
+    const settingsToggle = document.getElementById('settingsToggle');
+    const configBar = document.getElementById('configBar');
+    settingsToggle.addEventListener('click', () => {
+      settingsToggle.classList.toggle('expanded');
+      configBar.classList.toggle('show');
+    });
 
     // 监听超时时间输入变化
     timeoutInput.addEventListener('change', () => {
@@ -308,6 +445,16 @@ export function getPanelHtml(version: string = '0.0.0'): string {
         timeoutMinutes = value;
         vscode.postMessage({ type: 'setTimeout', timeoutMinutes: value });
       }
+    });
+
+    // 快捷设置按钮
+    document.querySelectorAll('.timeout-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const minutes = parseInt(btn.getAttribute('data-minutes'));
+        timeoutInput.value = minutes;
+        timeoutMinutes = minutes;
+        vscode.postMessage({ type: 'setTimeout', timeoutMinutes: minutes });
+      });
     });
 
     document.getElementById('btnSubmit').onclick = submit;
@@ -468,7 +615,11 @@ export function getPanelHtml(version: string = '0.0.0'): string {
           }
         }
       } else if (msg.type === 'setPort') {
+        currentPort = msg.port;
         document.getElementById('portInfo').textContent = '端口: ' + msg.port;
+        // 服务启动后显示绿色状态
+        connectionStatus.classList.remove('disconnected');
+        connectionStatus.title = '服务运行中';
       } else if (msg.type === 'setTimeoutMinutes') {
         if (typeof msg.timeoutMinutes === 'number' && msg.timeoutMinutes >= 0) {
           timeoutMinutes = msg.timeoutMinutes;
