@@ -5,6 +5,37 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.0] - 2025-01-23
+
+### 新增
+- **[文件拖拽功能]** 支持拖拽文本文件到输入框，显示为文件标签 `📄 文件名 ×`
+- **[文件夹拖拽]** 支持拖拽文件夹到输入框，显示为文件夹标签 `📁 文件夹名 ×`
+- **[文字中间插入]** 支持在文字任意位置拖放文件，使用鼠标坐标精确定位插入位置
+- **[相对路径转换]** 发送时自动将文件路径转换为相对于工作区的路径，简洁且跨平台兼容
+- **[ContentEditable 输入]** 将 textarea 升级为 contenteditable div，支持富文本编辑
+
+### 改进
+- **[代码模块化]** 将 panelTemplate.ts (872行) 拆分为 3 个模块：
+  - panelTemplate.ts (88行) - HTML 结构
+  - panelStyles.ts (378行) - CSS 样式
+  - panelScript.ts (464行) - JavaScript 逻辑
+- **[Clean Code 优化]** 提取工具函数，符合 KISS 原则：
+  - `parseFileUri()` - 处理 file:// URI 解析
+  - `getFileName()` - 从路径中提取文件名
+  - `toRelativePath()` - 转换为相对路径
+- **[路径处理简化]** 拖拽时保存原始路径，发送时统一转换，逻辑更清晰
+- **[视觉反馈]** 拖拽悬停时输入框高亮显示
+
+### 修复
+- **[JavaScript 转义错误]** 修复 replace 函数中反斜杠转义层数错误
+- **[Windows 路径解析]** 修复 file:/// URI 解析导致的路径格式错误
+- **[TypeScript 类型]** 添加 WebviewMessage 类型中缺失的 'getWorkspaceRoot'
+
+### 技术细节
+- 使用 `caretRangeFromPoint()` 根据鼠标坐标确定插入位置
+- 文件标签设置 `contentEditable="false"` 实现整体删除
+- 使用 `split().join()` 替代复杂的正则表达式转义
+
 ## [1.6.4] - 2026-01-22
 
 ### 新增
