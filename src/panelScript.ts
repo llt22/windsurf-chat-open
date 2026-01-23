@@ -165,15 +165,26 @@ export function getPanelScript(): string {
           item.getAsString((uriString) => {
             if (uriString) {
               let filePath = uriString.trim();
+              
+              // 解析 file:// URI
               if (filePath.startsWith('file:///')) {
-                filePath = filePath.substring(8);
+                // file:///d:/path/to/file (Windows) -> d:/path/to/file
+                // file:///home/user/file (Unix) -> /home/user/file
+                filePath = filePath.substring(8); // 移除 file:///
+                
+                // Unix 路径需要加回开头的 /
                 if (!/^[a-zA-Z]:/.test(filePath)) {
                   filePath = '/' + filePath;
                 }
               } else if (filePath.startsWith('file://')) {
-                filePath = filePath.substring(7);
+                filePath = filePath.substring(7); // 移除 file://
               }
+              
+              // URL 解码
               filePath = decodeURIComponent(filePath);
+              
+              // 统一路径分隔符为反斜杠（Windows 标准）
+              filePath = filePath.replace(/\//g, '\\');
 
               const pathParts = filePath.split(/[\\\\\\/]/);
               const name = pathParts.pop() || '';
