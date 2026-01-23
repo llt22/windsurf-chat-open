@@ -23,6 +23,52 @@ export function getPanelScript(): string {
     let timeoutMinutes = 30; // 默认30分钟
     let fileChipIdCounter = 0; // 用于生成唯一的 file-chip ID
 
+    // ============ 工具函数 ============
+
+    /**
+     * 将 file:// URI 转换为本地文件路径
+     */
+    function parseFileUri(uri) {
+      let path = uri.trim();
+
+      if (path.startsWith('file:///')) {
+        path = path.substring('file:///'.length);
+        // Unix 路径需要加回 /
+        if (!/^[a-zA-Z]:/.test(path)) {
+          path = '/' + path;
+        }
+      } else if (path.startsWith('file://')) {
+        path = path.substring('file://'.length);
+      }
+
+      return decodeURIComponent(path);
+    }
+
+    /**
+     * 从路径中提取文件名
+     */
+    function getFileName(path) {
+      const parts = path.split(/[\\\\\/]/);
+      return parts[parts.length - 1] || '';
+    }
+
+    /**
+     * 转换为相对路径
+     */
+    function toRelativePath(absolutePath, workspaceRoot) {
+      if (!workspaceRoot || !absolutePath.startsWith(workspaceRoot)) {
+        return absolutePath;
+      }
+
+      let relativePath = absolutePath.substring(workspaceRoot.length);
+
+      // 移除开头的路径分隔符
+      relativePath = relativePath.replace(/^[\\\\\/]+/, '');
+
+      // 统一使用正斜杠
+      return relativePath.split('\\\\').join('/');
+    }
+
     // 支持的文本文件扩展名
     const TEXT_FILE_EXTENSIONS = [
       '.txt', '.md', '.json', '.xml', '.yaml', '.yml', '.toml',
