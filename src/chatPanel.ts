@@ -23,7 +23,7 @@ export interface UserResponse {
 }
 
 interface WebviewMessage {
-  type: 'ready' | 'continue' | 'end' | 'submit' | 'setTimeout';
+  type: 'ready' | 'continue' | 'end' | 'submit' | 'setTimeout' | 'getWorkspaceRoot';
   text?: string;
   images?: string[];
   files?: Array<{ name: string; path: string; size: number }>;
@@ -84,6 +84,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         this._viewReadyResolve?.();
         // 发送当前超时配置到前端
         this._view?.webview.postMessage({ type: 'setTimeoutMinutes', timeoutMinutes: this._timeoutMinutes });
+        // 发送工作区根目录到前端
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+          const workspaceRoot = workspaceFolders[0].uri.fsPath;
+          this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot });
+        }
         break;
       case 'continue':
         this._onUserResponse.fire({ action: 'continue', text: '', images: [], requestId });
@@ -98,6 +104,14 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         if (typeof message.timeoutMinutes === 'number' && message.timeoutMinutes >= 0) {
           this._timeoutMinutes = message.timeoutMinutes;
           console.log(`[WindsurfChatOpen] Timeout set to ${this._timeoutMinutes} minutes`);
+        }
+        break;
+      case 'getWorkspaceRoot':
+        // 响应前端请求工作区路径
+        const folders = vscode.workspace.workspaceFolders;
+        if (folders && folders.length > 0) {
+          const root = folders[0].uri.fsPath;
+          this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot: root });
         }
         break;
     }
