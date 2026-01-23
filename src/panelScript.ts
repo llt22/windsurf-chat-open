@@ -99,13 +99,26 @@ export function getPanelScript(): string {
       }
     }
 
-    // 从 contenteditable 中提取文本，将 file-chip 替换为完整路径
+    // 从 contenteditable 中提取文本，将 file-chip 替换为相对路径
     function getTextWithFilePaths() {
       const clonedNode = inputText.cloneNode(true);
       const fileChips = clonedNode.querySelectorAll('.file-chip');
 
       fileChips.forEach(chip => {
-        const path = chip.getAttribute('data-path');
+        let path = chip.getAttribute('data-path') || '';
+        
+        // 转换为相对路径
+        if (workspaceRoot && path.startsWith(workspaceRoot)) {
+          path = path.substring(workspaceRoot.length);
+          // 移除开头的路径分隔符
+          while (path.startsWith('\\\\') || path.startsWith('/')) {
+            path = path.substring(1);
+          }
+        }
+        
+        // 统一使用正斜杠
+        path = path.replace(/\\\\/g, '/');
+        
         const textNode = document.createTextNode(path || chip.textContent);
         chip.parentNode.replaceChild(textNode, chip);
       });
@@ -183,9 +196,6 @@ export function getPanelScript(): string {
               // URL 解码
               filePath = decodeURIComponent(filePath);
 
-              // 统一路径分隔符为反斜杠（Windows 标准）
-              filePath = filePath.replace(/\\//g, '\\\\\\\\');
-
               const pathParts = filePath.split(/[\\\\\\/]/);
               const name = pathParts.pop() || '';
 
@@ -215,24 +225,12 @@ export function getPanelScript(): string {
       const selection = window.getSelection();
       if (!selection.rangeCount) return;
 
-      // 转换为相对于工作区的路径
-      let relativePath = path;
-      if (workspaceRoot && path.startsWith(workspaceRoot)) {
-        relativePath = path.substring(workspaceRoot.length);
-        // 移除开头的路径分隔符
-        if (relativePath.startsWith('\\\\') || relativePath.startsWith('/')) {
-          relativePath = relativePath.substring(1);
-        }
-        // 统一使用正斜杠
-        relativePath = relativePath.replace(/\\\\/g, '/');
-      }
-
       const range = selection.getRangeAt(0);
 
       const chip = document.createElement('span');
       chip.className = 'file-chip';
       chip.contentEditable = 'false';
-      chip.setAttribute('data-path', relativePath);
+      chip.setAttribute('data-path', path);
       chip.setAttribute('data-id', 'chip-' + (fileChipIdCounter++));
 
       const icon = document.createElement('span');
@@ -242,7 +240,7 @@ export function getPanelScript(): string {
       const nameSpan = document.createElement('span');
       nameSpan.className = 'chip-name';
       nameSpan.textContent = name;
-      nameSpan.title = relativePath;
+      nameSpan.title = path;
 
       const deleteBtn = document.createElement('span');
       deleteBtn.className = 'chip-delete';
