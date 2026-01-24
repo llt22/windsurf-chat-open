@@ -24,22 +24,36 @@ interface ErrorResponse {
     images: string[];
 }
 
+interface TimeoutResponse {
+    action: 'timeout_continue';
+    message: string;
+    text: string;
+    images: string[];
+}
+
+const MS_PER_MINUTE = 60 * 1000;
+
 export class HttpService {
     private server: http.Server | null = null;
     private port: number = 0;
     private pendingRequests: Map<string, {
         res: http.ServerResponse,
         timer: NodeJS.Timeout | undefined,
-        createdAt: number
+        createdAt: number,
+        initialTimeoutMinutes: number
     }> = new Map();
     private activeRequestId: string | null = null;
     private triedPorts: Set<number> = new Set();
     private connectionCheckInterval?: NodeJS.Timeout;
+    private getTimeoutMinutes: () => number;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
-        private readonly onRequest: (data: RequestData) => Promise<void>
-    ) { }
+        private readonly onRequest: (data: RequestData) => Promise<void>,
+        getTimeoutMinutes: () => number
+    ) {
+        this.getTimeoutMinutes = getTimeoutMinutes;
+    }
 
     public getPort(): number {
         return this.port;
@@ -199,23 +213,18 @@ export class HttpService {
                     this.activeRequestId = requestId;
                     await this.onRequest({ ...data, requestId });
 
-                    // 计算超时时间：0 表示不限制，否则使用配置的分钟数
-                    const timeoutMinutes = data.timeoutMinutes ?? (DEFAULT_REQUEST_TIMEOUT_MS / 60000);
-                    const timeoutMs = timeoutMinutes === 0 ? 0 : timeoutMinutes * 60 * 1000;
-
-                    let timer: NodeJS.Timeout | undefined;
-                    if (timeoutMs > 0) {
-                        timer = setTimeout(() => {
-                            const pending = this.pendingRequests.get(requestId);
-                            if (pending && !pending.res.writableEnded) {
-                                pending.res.writeHead(200, { 'Content-Type': 'application/json' });
-                                pending.res.end(JSON.stringify(this.createErrorResponse(ERROR_MESSAGES.REQUEST_TIMEOUT)));
-                                this.pendingRequests.delete(requestId);
-                            }
-                        }, timeoutMs);
-                    }
-
-                    this.pendingRequests.set(requestId, { res, timer, createdAt: Date.now() });
+                    // 获取当前超时配置
+                    const initialTimeoutMinutes = data.timeoutMinutes ?? this.getTimeoutMinutes();
+                    
+                    this.pendingRequests.set(requestId, { 
+                        res, 
+                        timer: undefined, 
+                        createdAt: Date.now(),
+                        initialTimeoutMinutes
+                    });
+                    
+                    // 启动超时检查
+                    this.startTimeoutCheck(requestId);
 
                 } catch (e) {
                     if (!res.writableEnded) {
@@ -275,6 +284,55 @@ export class HttpService {
             text: '',
             images: []
         };
+    }
+
+    private createTimeoutResponse(elapsed: number, currentTimeoutMinutes: number): TimeoutResponse {
+        return {
+            action: 'timeout_continue',
+            message: `已等待 ${Math.floor(elapsed / MS_PER_MINUTE)} 分钟，当前超时设置为 ${currentTimeoutMinutes} 分钟`,
+            text: '',
+            images: []
+        };
+    }
+
+    private startTimeoutCheck(requestId: string) {
+        const pending = this.pendingRequests.get(requestId);
+        if (!pending) return;
+
+        // 获取最新的超时配置
+        const currentTimeoutMinutes = this.getTimeoutMinutes();
+        const timeoutMs = currentTimeoutMinutes === 0 ? 0 : currentTimeoutMinutes * MS_PER_MINUTE;
+
+        // 如果设置为不限制，清除定时器
+        if (timeoutMs === 0) {
+            if (pending.timer) {
+                clearTimeout(pending.timer);
+                pending.timer = undefined;
+            }
+            return;
+        }
+
+        // 计算已等待时间
+        const elapsed = Date.now() - pending.createdAt;
+        const remaining = timeoutMs - elapsed;
+
+        // 如果已超时，发送继续等待提示
+        if (remaining <= 0) {
+            if (!pending.res.writableEnded) {
+                pending.res.writeHead(200, { 'Content-Type': 'application/json' });
+                pending.res.end(JSON.stringify(this.createTimeoutResponse(elapsed, currentTimeoutMinutes)));
+                this.pendingRequests.delete(requestId);
+            }
+            return;
+        }
+
+        // 设置新的定时器
+        if (pending.timer) {
+            clearTimeout(pending.timer);
+        }
+        pending.timer = setTimeout(() => {
+            this.startTimeoutCheck(requestId);
+        }, remaining);
     }
 
     private clearPendingRequest(requestId: string, sendResponse: boolean = false, responseData?: ErrorResponse) {

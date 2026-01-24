@@ -22,7 +22,11 @@ class ExtensionStateManager {
   constructor(private context: vscode.ExtensionContext) {
     const version = context.extension.packageJSON.version || '0.0.0';
     this.panelProvider = new ChatPanelProvider(context.extensionUri, version);
-    this.httpService = new HttpService(context, (data) => this.handleRequest(data));
+    this.httpService = new HttpService(
+      context, 
+      (data) => this.handleRequest(data),
+      () => this.panelProvider.getTimeoutMinutes()
+    );
     this.workspaceManager = new WorkspaceManager(context.extensionPath);
   }
 
