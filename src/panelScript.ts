@@ -20,7 +20,7 @@ export function getPanelScript(): string {
 
     const MAX_IMAGE_COUNT = 10;
     const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-    let timeoutMinutes = 1; // 默认1分钟
+    let timeoutMinutes = 240; // 默认4小时
     let fileChipIdCounter = 0; // 用于生成唯一的 file-chip ID
 
     // ============ 工具函数 ============
@@ -94,6 +94,7 @@ export function getPanelScript(): string {
       if (!isNaN(value) && value >= 0) {
         timeoutMinutes = value;
         vscode.postMessage({ type: 'setTimeout', timeoutMinutes: value });
+        updateCountdownForNewTimeout();
       }
     });
 
@@ -104,6 +105,7 @@ export function getPanelScript(): string {
         timeoutInput.value = minutes;
         timeoutMinutes = minutes;
         vscode.postMessage({ type: 'setTimeout', timeoutMinutes: minutes });
+        updateCountdownForNewTimeout();
       });
     });
 
@@ -388,26 +390,50 @@ export function getPanelScript(): string {
     let countdownInterval;
     let displayInterval;
     let remainingSeconds = 0;
+    let countdownStartTime = 0;
+    let isCountdownRunning = false;
 
     function startCountdown() {
       if (countdownInterval) clearInterval(countdownInterval);
       if (displayInterval) clearInterval(displayInterval);
 
-      // 如果超时时间为0，不启动倒计时
       if (timeoutMinutes === 0) {
         countdown.textContent = '⏱️ 不限制';
+        isCountdownRunning = false;
         return;
       }
 
       remainingSeconds = timeoutMinutes * 60;
+      countdownStartTime = Date.now();
+      isCountdownRunning = true;
+      
       countdownInterval = setInterval(() => {
         remainingSeconds--;
         if (remainingSeconds <= 0) {
           clearInterval(countdownInterval);
           clearInterval(displayInterval);
           countdown.textContent = '';
+          isCountdownRunning = false;
         }
       }, 1000);
+    }
+
+    function updateCountdownForNewTimeout() {
+      if (!isCountdownRunning) return;
+      
+      const elapsed = Math.floor((Date.now() - countdownStartTime) / 1000);
+      const newRemaining = timeoutMinutes * 60 - elapsed;
+      
+      if (newRemaining <= 0) {
+        remainingSeconds = 0;
+        clearInterval(countdownInterval);
+        clearInterval(displayInterval);
+        countdown.textContent = '';
+        isCountdownRunning = false;
+      } else {
+        remainingSeconds = newRemaining;
+        countdown.textContent = getCountdownText();
+      }
     }
 
     function getCountdownText() {
@@ -447,6 +473,7 @@ export function getPanelScript(): string {
         if (typeof msg.timeoutMinutes === 'number' && msg.timeoutMinutes >= 0) {
           timeoutMinutes = msg.timeoutMinutes;
           timeoutInput.value = msg.timeoutMinutes;
+          updateCountdownForNewTimeout();
         }
       } else if (msg.type === 'setWorkspaceRoot') {
         // 接收工作区根目录

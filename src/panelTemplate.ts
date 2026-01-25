@@ -38,7 +38,7 @@ export function getPanelHtml(version: string = '0.0.0'): string {
     <div class="config-bar-row">
       <div class="config-item">
         <label for="timeoutInput">超时时间:</label>
-        <input type="number" id="timeoutInput" min="0" step="1" value="30" />
+        <input type="number" id="timeoutInput" min="0" step="1" value="240" />
         <span>分钟</span>
         <span class="hint-text">(0=不限制)</span>
       </div>
