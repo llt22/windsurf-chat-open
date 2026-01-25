@@ -207,24 +207,34 @@ export class HttpService {
 
                     const requestId = this.validateRequestId(data.requestId);
 
-                    // Clear any existing request with same ID, sending cancellation response
+                    if (this.activeRequestId && this.activeRequestId !== requestId) {
+                        this.clearPendingRequest(
+                            this.activeRequestId,
+                            true,
+                            this.createErrorResponse(ERROR_MESSAGES.REQUEST_SUPERSEDED)
+                        );
+                    }
+
                     this.clearPendingRequest(requestId, true, this.createErrorResponse(ERROR_MESSAGES.REQUEST_SUPERSEDED));
 
-                    this.activeRequestId = requestId;
-                    await this.onRequest({ ...data, requestId });
-
-                    // 获取当前超时配置
                     const initialTimeoutMinutes = data.timeoutMinutes ?? this.getTimeoutMinutes();
-                    
-                    this.pendingRequests.set(requestId, { 
-                        res, 
-                        timer: undefined, 
+
+                    this.pendingRequests.set(requestId, {
+                        res,
+                        timer: undefined,
                         createdAt: Date.now(),
                         initialTimeoutMinutes
                     });
-                    
-                    // 启动超时检查
+                    this.activeRequestId = requestId;
+
                     this.startTimeoutCheck(requestId);
+
+                    try {
+                        await this.onRequest({ ...data, requestId, timeoutMinutes: initialTimeoutMinutes });
+                    } catch (e: any) {
+                        console.error('[WindsurfChatOpen] Failed to handle request:', e);
+                        this.sendResponse(this.createErrorResponse(String(e?.message || e || 'Request handling failed')), requestId);
+                    }
 
                 } catch (e) {
                     if (!res.writableEnded) {
@@ -322,6 +332,9 @@ export class HttpService {
                 pending.res.writeHead(200, { 'Content-Type': 'application/json' });
                 pending.res.end(JSON.stringify(this.createTimeoutResponse(elapsed, currentTimeoutMinutes)));
                 this.pendingRequests.delete(requestId);
+                if (this.activeRequestId === requestId) {
+                    this.activeRequestId = null;
+                }
             }
             return;
         }
@@ -350,6 +363,9 @@ export class HttpService {
                 }
             }
             this.pendingRequests.delete(requestId);
+            if (this.activeRequestId === requestId) {
+                this.activeRequestId = null;
+            }
         }
     }
 

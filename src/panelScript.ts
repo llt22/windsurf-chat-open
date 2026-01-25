@@ -20,7 +20,7 @@ export function getPanelScript(): string {
 
     const MAX_IMAGE_COUNT = 10;
     const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-    let timeoutMinutes = 30; // 默认30分钟
+    let timeoutMinutes = 1; // 默认1分钟
     let fileChipIdCounter = 0; // 用于生成唯一的 file-chip ID
 
     // ============ 工具函数 ============

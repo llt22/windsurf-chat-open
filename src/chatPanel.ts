@@ -38,8 +38,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _port: number = 0;
   private _viewReadyResolve?: () => void;
   private _viewReadyPromise?: Promise<void>;
+  private _isWebviewReady: boolean = false;
   private _currentRequestId?: string;
-  private _timeoutMinutes: number = 30; // 默认30分钟
+  private _timeoutMinutes: number = 1; // 默认1分钟
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -49,12 +50,17 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   }
 
   private _resetViewReadyPromise() {
+    this._isWebviewReady = false;
     this._viewReadyPromise = new Promise<void>((resolve) => {
       this._viewReadyResolve = resolve;
     });
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
+    if (this._viewReadyResolve) {
+      this._viewReadyResolve();
+    }
+    this._resetViewReadyPromise();
     this._view = webviewView;
 
     webviewView.webview.options = {
@@ -69,18 +75,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     }
 
     webviewView.webview.onDidReceiveMessage((message) => this._handleWebviewMessage(message));
-
-    webviewView.onDidChangeVisibility(() => {
-      if (!webviewView.visible) {
-        this._resetViewReadyPromise();
-      }
-    });
   }
 
   private _handleWebviewMessage(message: WebviewMessage) {
     const requestId = message.requestId || this._currentRequestId;
     switch (message.type) {
       case 'ready':
+        this._isWebviewReady = true;
         this._viewReadyResolve?.();
         // 发送当前超时配置到前端
         this._view?.webview.postMessage({ type: 'setTimeoutMinutes', timeoutMinutes: this._timeoutMinutes });
@@ -125,13 +126,27 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     this._currentRequestId = requestId;
     if (!this._view) {
       await vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
-      // Wait for view to be resolved after focus command
-      await new Promise<void>(resolve => setTimeout(resolve, 100));
+      const deadline = Date.now() + WEBVIEW_READY_TIMEOUT_MS;
+      while (!this._view && Date.now() < deadline) {
+        await new Promise<void>(resolve => setTimeout(resolve, 50));
+      }
+    }
+
+    if (!this._view) {
+      this._onUserResponse.fire({
+        action: 'error',
+        text: '',
+        images: [],
+        requestId,
+        error: ERROR_MESSAGES.PANEL_NOT_AVAILABLE
+      });
+      return;
     }
 
     try {
+      const readyPromise = this._viewReadyPromise;
       await Promise.race([
-        this._viewReadyPromise,
+        readyPromise,
         new Promise<void>((_, reject) =>
           setTimeout(() => reject(new Error('Webview ready timeout')), WEBVIEW_READY_TIMEOUT_MS)
         )
