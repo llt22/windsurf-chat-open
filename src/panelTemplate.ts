@@ -45,9 +45,7 @@ export function getPanelHtml(version: string = '0.0.0'): string {
       <div class="timeout-presets">
         <button class="timeout-preset-btn" data-minutes="0">不限制</button>
         <button class="timeout-preset-btn" data-minutes="30">30分钟</button>
-        <button class="timeout-preset-btn" data-minutes="60">1小时</button>
         <button class="timeout-preset-btn" data-minutes="240">4小时</button>
-        <button class="timeout-preset-btn" data-minutes="480">8小时</button>
       </div>
       <button id="confirmConfigBtn" class="confirm-config-btn">确定</button>
     </div>
