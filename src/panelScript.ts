@@ -88,25 +88,25 @@ export function getPanelScript(): string {
       configBar.classList.toggle('show');
     });
 
-    // 监听超时时间输入变化
-    timeoutInput.addEventListener('change', () => {
+    // 快捷设置按钮（仅更新输入框，不立即保存）
+    document.querySelectorAll('.timeout-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const minutes = parseInt(btn.getAttribute('data-minutes'));
+        timeoutInput.value = minutes;
+      });
+    });
+
+    // 确定按钮：保存配置并收起配置栏
+    document.getElementById('confirmConfigBtn').addEventListener('click', () => {
       const value = parseInt(timeoutInput.value);
       if (!isNaN(value) && value >= 0) {
         timeoutMinutes = value;
         vscode.postMessage({ type: 'setTimeout', timeoutMinutes: value });
         updateCountdownForNewTimeout();
+        // 收起配置栏
+        settingsToggle.classList.remove('expanded');
+        configBar.classList.remove('show');
       }
-    });
-
-    // 快捷设置按钮
-    document.querySelectorAll('.timeout-preset-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const minutes = parseInt(btn.getAttribute('data-minutes'));
-        timeoutInput.value = minutes;
-        timeoutMinutes = minutes;
-        vscode.postMessage({ type: 'setTimeout', timeoutMinutes: minutes });
-        updateCountdownForNewTimeout();
-      });
     });
 
     document.getElementById('btnSubmit').onclick = submit;

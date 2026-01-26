@@ -374,6 +374,23 @@ export function getPanelStyles(): string {
     .timeout-preset-btn:active {
       transform: translateY(1px);
     }
+    .confirm-config-btn {
+      padding: 4px 16px;
+      margin-left: auto;
+      font-size: 12px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .confirm-config-btn:hover {
+      background: var(--vscode-button-hoverBackground);
+    }
+    .confirm-config-btn:active {
+      transform: translateY(1px);
+    }
   `;
 }
 

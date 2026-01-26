@@ -2,7 +2,7 @@
   "name": "windsurf-chat-open",
   "displayName": "WindsurfChatOpen",
   "description": "开源版 WindsurfChat - 让 AI 停下来听你说话",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "repository": {
     "type": "git",
     "url": "https://github.com/nicepkg/windsurf-chat-open"
