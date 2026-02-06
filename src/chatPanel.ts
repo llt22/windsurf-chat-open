@@ -42,6 +42,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _timeoutMinutes: number = 240; // 默认4小时
 
   private _getPortFn?: () => number;
+  private _activePrompts: Map<string, { prompt: string; context?: string }> = new Map();
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -96,14 +97,21 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
           const workspaceRoot = workspaceFolders[0].uri.fsPath;
           this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot });
         }
+        // 重放所有活跃的对话到 webview（恢复因 webview 重建而丢失的卡片）
+        for (const [rid, data] of this._activePrompts.entries()) {
+          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context, startTimer: true });
+        }
         break;
       case 'continue':
+        if (requestId) this._activePrompts.delete(requestId);
         this._onUserResponse.fire({ action: 'continue', text: '', images: [], requestId });
         break;
       case 'end':
+        if (requestId) this._activePrompts.delete(requestId);
         this._onUserResponse.fire({ action: 'end', text: '', images: [], requestId });
         break;
       case 'submit':
+        if (requestId) this._activePrompts.delete(requestId);
         this._handleSubmit(message.text || '', message.images || [], message.files, requestId);
         break;
       case 'setTimeout':
@@ -170,6 +178,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
     if (this._view) {
       this._view.show?.(false);
+      if (requestId) {
+        this._activePrompts.set(requestId, { prompt, context });
+      }
       this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, startTimer: true });
     } else {
       console.error('[WindsurfChatOpen] Panel view not available after focus attempt');
