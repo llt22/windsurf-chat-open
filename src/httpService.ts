@@ -42,7 +42,6 @@ export class HttpService {
         createdAt: number,
         initialTimeoutMinutes: number
     }> = new Map();
-    private activeRequestId: string | null = null;
     private triedPorts: Set<number> = new Set();
     private connectionCheckInterval?: NodeJS.Timeout;
     private getTimeoutMinutes: () => number;
@@ -207,14 +206,6 @@ export class HttpService {
 
                     const requestId = this.validateRequestId(data.requestId);
 
-                    if (this.activeRequestId && this.activeRequestId !== requestId) {
-                        this.clearPendingRequest(
-                            this.activeRequestId,
-                            true,
-                            this.createErrorResponse(ERROR_MESSAGES.REQUEST_SUPERSEDED)
-                        );
-                    }
-
                     this.clearPendingRequest(requestId, true, this.createErrorResponse(ERROR_MESSAGES.REQUEST_SUPERSEDED));
 
                     const initialTimeoutMinutes = data.timeoutMinutes ?? this.getTimeoutMinutes();
@@ -225,7 +216,6 @@ export class HttpService {
                         createdAt: Date.now(),
                         initialTimeoutMinutes
                     });
-                    this.activeRequestId = requestId;
 
                     this.startTimeoutCheck(requestId);
 
@@ -256,8 +246,7 @@ export class HttpService {
             res.end(JSON.stringify({
                 status: 'ok',
                 port: this.port,
-                pendingRequests: this.pendingRequests.size,
-                activeRequestId: this.activeRequestId
+                pendingRequests: this.pendingRequests.size
             }));
         } else if (req.method === 'GET' && req.url === '/status') {
             // 返回详细状态信息，用于调试
@@ -271,7 +260,6 @@ export class HttpService {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 port: this.port,
-                activeRequestId: this.activeRequestId,
                 pendingRequests: requests
             }));
         } else {
@@ -332,9 +320,6 @@ export class HttpService {
                 pending.res.writeHead(200, { 'Content-Type': 'application/json' });
                 pending.res.end(JSON.stringify(this.createTimeoutResponse(elapsed, currentTimeoutMinutes)));
                 this.pendingRequests.delete(requestId);
-                if (this.activeRequestId === requestId) {
-                    this.activeRequestId = null;
-                }
             }
             return;
         }
@@ -363,14 +348,11 @@ export class HttpService {
                 }
             }
             this.pendingRequests.delete(requestId);
-            if (this.activeRequestId === requestId) {
-                this.activeRequestId = null;
-            }
         }
     }
 
     public sendResponse(response: any, requestId?: string) {
-        const id = requestId || this.activeRequestId;
+        const id = requestId;
         if (!id || !this.pendingRequests.has(id)) {
             console.warn(`[WindsurfChatOpen] No pending request found for ID: ${id}`);
             return;
@@ -382,9 +364,6 @@ export class HttpService {
         if (pending.res.writableEnded || pending.res.destroyed) {
             console.warn(`[WindsurfChatOpen] Response object already closed for request ${id}, connection may have been lost`);
             this.clearPendingRequest(id);
-            if (this.activeRequestId === id) {
-                this.activeRequestId = null;
-            }
             return;
         }
 
@@ -400,9 +379,6 @@ export class HttpService {
         }
 
         this.clearPendingRequest(id);
-        if (this.activeRequestId === id) {
-            this.activeRequestId = null;
-        }
     }
 
     public dispose() {

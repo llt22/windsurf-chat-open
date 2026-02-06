@@ -51,6 +51,10 @@ export function getPanelHtml(version: string = '0.0.0'): string {
     </div>
   </div>
   
+  <div class="tab-bar" id="tabBar">
+    <div class="tab-bar-inner" id="tabBarInner"></div>
+  </div>
+
   <div class="waiting-indicator" id="waitingIndicator">
     <span class="waiting-indicator-text">✨ AI 等待你的输入...</span>
     <span id="countdown" class="countdown"></span>

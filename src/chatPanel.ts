@@ -39,7 +39,6 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _viewReadyResolve?: () => void;
   private _viewReadyPromise?: Promise<void>;
   private _isWebviewReady: boolean = false;
-  private _currentRequestId?: string;
   private _timeoutMinutes: number = 240; // 默认4小时
 
   constructor(
@@ -74,7 +73,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   }
 
   private _handleWebviewMessage(message: WebviewMessage) {
-    const requestId = message.requestId || this._currentRequestId;
+    const requestId = message.requestId;
     switch (message.type) {
       case 'ready':
         this._isWebviewReady = true;
@@ -123,7 +122,6 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   }
 
   async showPrompt(prompt: string, requestId?: string) {
-    this._currentRequestId = requestId;
     if (!this._view) {
       await vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
       const deadline = Date.now() + WEBVIEW_READY_TIMEOUT_MS;

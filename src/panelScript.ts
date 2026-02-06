@@ -13,15 +13,20 @@ export function getPanelScript(): string {
     const waitingIndicator = document.getElementById('waitingIndicator');
     const timeoutInput = document.getElementById('timeoutInput');
     const connectionStatus = document.getElementById('connectionStatus');
-    let images = [];
-    let currentRequestId = '';
+    const tabBar = document.getElementById('tabBar');
+    const tabBarInner = document.getElementById('tabBarInner');
+
+    // ============ 多对话状态 ============
+    const conversations = new Map();
+    let activeRequestId = null;
+    let tabCounter = 0;
     let currentPort = 0;
-    let workspaceRoot = ''; // 工作区根目录
+    let workspaceRoot = '';
 
     const MAX_IMAGE_COUNT = 10;
     const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-    let timeoutMinutes = 240; // 默认4小时
-    let fileChipIdCounter = 0; // 用于生成唯一的 file-chip ID
+    let timeoutMinutes = 240;
+    let fileChipIdCounter = 0;
 
     // ============ 工具函数 ============
 
@@ -80,6 +85,243 @@ export function getPanelScript(): string {
       '.gitignore', '.dockerignore', '.editorconfig', '.prettierrc', '.eslintrc'
     ];
 
+    // ============ Tab 管理 ============
+
+    function createConversation(requestId, prompt) {
+      tabCounter++;
+      const conv = {
+        requestId,
+        prompt,
+        tabIndex: tabCounter,
+        inputHtml: '',
+        images: [],
+        imagePreviewHtml: '',
+        countdownStartTime: Date.now(),
+        remainingSeconds: timeoutMinutes === 0 ? -1 : timeoutMinutes * 60,
+        countdownInterval: null,
+        displayInterval: null,
+        isCountdownRunning: false
+      };
+      conversations.set(requestId, conv);
+      addTab(requestId, tabCounter);
+      switchToConversation(requestId);
+      startConvCountdown(requestId);
+    }
+
+    function addTab(requestId, index) {
+      const tab = document.createElement('div');
+      tab.className = 'tab-item';
+      tab.setAttribute('data-id', requestId);
+
+      const dot = document.createElement('span');
+      dot.className = 'tab-dot';
+
+      const label = document.createElement('span');
+      label.className = 'tab-label';
+      label.textContent = '对话 ' + index;
+
+      const close = document.createElement('span');
+      close.className = 'tab-close';
+      close.textContent = '×';
+      close.onclick = (e) => {
+        e.stopPropagation();
+        endConversation(requestId);
+      };
+
+      tab.appendChild(dot);
+      tab.appendChild(label);
+      tab.appendChild(close);
+      tab.onclick = () => switchToConversation(requestId);
+      tabBarInner.appendChild(tab);
+      updateTabBarVisibility();
+    }
+
+    function updateTabBarVisibility() {
+      if (conversations.size > 0) {
+        tabBar.classList.add('show');
+      } else {
+        tabBar.classList.remove('show');
+      }
+    }
+
+    function saveCurrentConvState() {
+      if (!activeRequestId) return;
+      const conv = conversations.get(activeRequestId);
+      if (!conv) return;
+      conv.inputHtml = inputText.innerHTML;
+      conv.images = currentImages().slice();
+      conv.imagePreviewHtml = imagePreview.innerHTML;
+    }
+
+    function currentImages() {
+      // 从 imagePreview DOM 中收集当前 images 数组
+      // 我们维护一个模块级 images 引用
+      return _images;
+    }
+
+    let _images = [];
+
+    function switchToConversation(requestId) {
+      if (activeRequestId === requestId) {
+        // 刷新 tab 高亮
+        updateTabHighlight(requestId);
+        return;
+      }
+      saveCurrentConvState();
+      activeRequestId = requestId;
+      const conv = conversations.get(requestId);
+      if (!conv) return;
+
+      // 恢复 prompt
+      promptText.textContent = conv.prompt;
+      // 恢复 waiting indicator
+      waitingIndicator.classList.add('show');
+      // 恢复 input
+      inputText.innerHTML = conv.inputHtml;
+      // 恢复 images
+      _images = conv.images.slice();
+      imagePreview.innerHTML = conv.imagePreviewHtml;
+      // 恢复 countdown
+      restoreCountdownDisplay(conv);
+
+      updateTabHighlight(requestId);
+      inputText.focus();
+    }
+
+    function updateTabHighlight(requestId) {
+      tabBarInner.querySelectorAll('.tab-item').forEach(tab => {
+        if (tab.getAttribute('data-id') === requestId) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+    }
+
+    function removeConversation(requestId) {
+      const conv = conversations.get(requestId);
+      if (conv) {
+        if (conv.countdownInterval) clearInterval(conv.countdownInterval);
+        if (conv.displayInterval) clearInterval(conv.displayInterval);
+      }
+      conversations.delete(requestId);
+      // 移除 tab DOM
+      const tabEl = tabBarInner.querySelector('[data-id="' + requestId + '"]');
+      if (tabEl) tabEl.remove();
+      updateTabBarVisibility();
+
+      // 如果关闭的是当前活跃对话，切换到另一个
+      if (activeRequestId === requestId) {
+        activeRequestId = null;
+        const keys = Array.from(conversations.keys());
+        if (keys.length > 0) {
+          switchToConversation(keys[keys.length - 1]);
+        } else {
+          // 无对话，恢复默认
+          promptText.textContent = '等待 AI 输出...';
+          waitingIndicator.classList.remove('show');
+          countdown.textContent = '';
+          inputText.innerHTML = '';
+          _images = [];
+          imagePreview.innerHTML = '';
+        }
+      }
+    }
+
+    function endConversation(requestId) {
+      vscode.postMessage({ type: 'end', requestId });
+      removeConversation(requestId);
+    }
+
+    // ============ 每对话独立倒计时 ============
+
+    function startConvCountdown(requestId) {
+      const conv = conversations.get(requestId);
+      if (!conv) return;
+
+      if (conv.countdownInterval) clearInterval(conv.countdownInterval);
+      if (conv.displayInterval) clearInterval(conv.displayInterval);
+
+      if (timeoutMinutes === 0) {
+        conv.remainingSeconds = -1;
+        conv.isCountdownRunning = false;
+        if (activeRequestId === requestId) {
+          countdown.textContent = '⏱️ 不限制';
+        }
+        return;
+      }
+
+      conv.remainingSeconds = timeoutMinutes * 60;
+      conv.countdownStartTime = Date.now();
+      conv.isCountdownRunning = true;
+
+      conv.countdownInterval = setInterval(() => {
+        conv.remainingSeconds--;
+        if (conv.remainingSeconds <= 0) {
+          clearInterval(conv.countdownInterval);
+          clearInterval(conv.displayInterval);
+          conv.countdownInterval = null;
+          conv.displayInterval = null;
+          conv.isCountdownRunning = false;
+          if (activeRequestId === requestId) {
+            countdown.textContent = '';
+          }
+        }
+      }, 1000);
+
+      conv.displayInterval = setInterval(() => {
+        if (activeRequestId === requestId) {
+          if (conv.remainingSeconds > 0) {
+            countdown.textContent = formatCountdown(conv.remainingSeconds);
+          } else {
+            countdown.textContent = '';
+            clearInterval(conv.displayInterval);
+            conv.displayInterval = null;
+          }
+        }
+      }, 1000);
+    }
+
+    function restoreCountdownDisplay(conv) {
+      if (!conv.isCountdownRunning && conv.remainingSeconds === -1) {
+        countdown.textContent = '⏱️ 不限制';
+      } else if (conv.isCountdownRunning && conv.remainingSeconds > 0) {
+        countdown.textContent = formatCountdown(conv.remainingSeconds);
+      } else {
+        countdown.textContent = '';
+      }
+    }
+
+    function formatCountdown(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return '⏱️ ' + m + ':' + s.toString().padStart(2, '0');
+    }
+
+    function updateCountdownForNewTimeout() {
+      // 更新所有对话的倒计时
+      for (const [rid, conv] of conversations.entries()) {
+        if (!conv.isCountdownRunning) continue;
+        const elapsed = Math.floor((Date.now() - conv.countdownStartTime) / 1000);
+        const newRemaining = timeoutMinutes * 60 - elapsed;
+        if (newRemaining <= 0) {
+          conv.remainingSeconds = 0;
+          if (conv.countdownInterval) clearInterval(conv.countdownInterval);
+          if (conv.displayInterval) clearInterval(conv.displayInterval);
+          conv.countdownInterval = null;
+          conv.displayInterval = null;
+          conv.isCountdownRunning = false;
+        } else {
+          conv.remainingSeconds = newRemaining;
+        }
+      }
+      // 刷新当前显示
+      if (activeRequestId) {
+        const conv = conversations.get(activeRequestId);
+        if (conv) restoreCountdownDisplay(conv);
+      }
+    }
+
     // 设置展开/收起
     const settingsToggle = document.getElementById('settingsToggle');
     const configBar = document.getElementById('configBar');
@@ -111,8 +353,9 @@ export function getPanelScript(): string {
 
     document.getElementById('btnSubmit').onclick = submit;
     document.getElementById('btnEnd').onclick = () => {
-      waitingIndicator.classList.remove('show');
-      vscode.postMessage({ type: 'end', requestId: currentRequestId });
+      if (activeRequestId) {
+        endConversation(activeRequestId);
+      }
     };
     document.getElementById('modalClose').onclick = closeModal;
     imageModal.onclick = (e) => { if (e.target === imageModal) closeModal(); };
@@ -126,25 +369,24 @@ export function getPanelScript(): string {
     }
 
     function submit() {
-      waitingIndicator.classList.remove('show');
+      if (!activeRequestId) return;
+      const rid = activeRequestId;
 
       // 从 contenteditable 中提取文本和文件路径
       let text = getTextWithFilePaths();
-      const validImages = images.filter(img => img !== null);
+      const validImages = _images.filter(img => img !== null);
 
       if (text || validImages.length > 0) {
         vscode.postMessage({
           type: 'submit',
           text,
           images: validImages,
-          requestId: currentRequestId
+          requestId: rid
         });
-        inputText.innerHTML = '';
-        images = [];
-        imagePreview.innerHTML = '';
       } else {
-        vscode.postMessage({ type: 'continue', requestId: currentRequestId });
+        vscode.postMessage({ type: 'continue', requestId: rid });
       }
+      removeConversation(rid);
     }
 
     // 从 contenteditable 中提取文本，将 file-chip 替换为相对路径
@@ -184,8 +426,9 @@ export function getPanelScript(): string {
         e.preventDefault();
         submit();
       } else if (e.key === 'Escape') {
-        waitingIndicator.classList.remove('show');
-        vscode.postMessage({ type: 'end', requestId: currentRequestId });
+        if (activeRequestId) {
+          endConversation(activeRequestId);
+        }
       }
     });
 
@@ -336,7 +579,7 @@ export function getPanelScript(): string {
 
     function addImage(file) {
       // 检查图片数量限制
-      if (images.filter(img => img !== null).length >= MAX_IMAGE_COUNT) {
+      if (_images.filter(img => img !== null).length >= MAX_IMAGE_COUNT) {
         alert('图片数量超过限制（最多 ' + MAX_IMAGE_COUNT + ' 张）');
         return;
       }
@@ -350,8 +593,8 @@ export function getPanelScript(): string {
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target.result;
-        const index = images.length;
-        images.push(dataUrl);
+        const index = _images.length;
+        _images.push(dataUrl);
 
         const wrapper = document.createElement('div');
         wrapper.className = 'img-wrapper';
@@ -373,7 +616,7 @@ export function getPanelScript(): string {
     }
 
     function removeImage(index, wrapper) {
-      images[index] = null;
+      _images[index] = null;
       wrapper.remove();
     }
 
@@ -387,82 +630,11 @@ export function getPanelScript(): string {
       return TEXT_FILE_EXTENSIONS.some(ext => lowerName.endsWith(ext));
     }
 
-    let countdownInterval;
-    let displayInterval;
-    let remainingSeconds = 0;
-    let countdownStartTime = 0;
-    let isCountdownRunning = false;
-
-    function startCountdown() {
-      if (countdownInterval) clearInterval(countdownInterval);
-      if (displayInterval) clearInterval(displayInterval);
-
-      if (timeoutMinutes === 0) {
-        countdown.textContent = '⏱️ 不限制';
-        isCountdownRunning = false;
-        return;
-      }
-
-      remainingSeconds = timeoutMinutes * 60;
-      countdownStartTime = Date.now();
-      isCountdownRunning = true;
-      
-      countdownInterval = setInterval(() => {
-        remainingSeconds--;
-        if (remainingSeconds <= 0) {
-          clearInterval(countdownInterval);
-          clearInterval(displayInterval);
-          countdown.textContent = '';
-          isCountdownRunning = false;
-        }
-      }, 1000);
-    }
-
-    function updateCountdownForNewTimeout() {
-      if (!isCountdownRunning) return;
-      
-      const elapsed = Math.floor((Date.now() - countdownStartTime) / 1000);
-      const newRemaining = timeoutMinutes * 60 - elapsed;
-      
-      if (newRemaining <= 0) {
-        remainingSeconds = 0;
-        clearInterval(countdownInterval);
-        clearInterval(displayInterval);
-        countdown.textContent = '';
-        isCountdownRunning = false;
-      } else {
-        remainingSeconds = newRemaining;
-        countdown.textContent = getCountdownText();
-      }
-    }
-
-    function getCountdownText() {
-      const minutes = Math.floor(remainingSeconds / 60);
-      const seconds = remainingSeconds % 60;
-      return '⏱️ ' + minutes + ':' + seconds.toString().padStart(2, '0');
-    }
-
     window.addEventListener('message', (e) => {
       const msg = e.data;
       if (msg.type === 'showPrompt') {
-        promptText.textContent = msg.prompt;
-        currentRequestId = msg.requestId || '';
-        waitingIndicator.classList.add('show');
-        inputText.focus();
-        if (msg.startTimer) {
-          startCountdown();
-          if (timeoutMinutes > 0) {
-            if (displayInterval) clearInterval(displayInterval);
-            displayInterval = setInterval(() => {
-              if (remainingSeconds > 0) {
-                countdown.textContent = getCountdownText();
-              } else {
-                clearInterval(displayInterval);
-                countdown.textContent = '';
-              }
-            }, 1000);
-          }
-        }
+        const rid = msg.requestId || Date.now().toString();
+        createConversation(rid, msg.prompt);
       } else if (msg.type === 'setPort') {
         currentPort = msg.port;
         document.getElementById('portInfo').textContent = '端口: ' + msg.port;

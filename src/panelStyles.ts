@@ -391,6 +391,76 @@ export function getPanelStyles(): string {
     .confirm-config-btn:active {
       transform: translateY(1px);
     }
+    .tab-bar {
+      display: none;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--vscode-widget-border);
+    }
+    .tab-bar.show {
+      display: block;
+    }
+    .tab-bar-inner {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .tab-bar-inner::-webkit-scrollbar {
+      height: 3px;
+    }
+    .tab-bar-inner::-webkit-scrollbar-thumb {
+      background: var(--vscode-scrollbarSlider-background);
+      border-radius: 3px;
+    }
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      color: var(--vscode-descriptionForeground);
+      transition: color 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .tab-item:hover {
+      color: var(--vscode-foreground);
+      background: var(--vscode-list-hoverBackground);
+    }
+    .tab-item.active {
+      color: var(--vscode-foreground);
+      border-bottom-color: var(--vscode-focusBorder);
+    }
+    .tab-item .tab-label {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tab-item .tab-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--vscode-testing-iconPassed);
+      flex-shrink: 0;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .tab-item .tab-close {
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0;
+      cursor: pointer;
+      padding: 0 2px;
+      transition: opacity 0.15s;
+    }
+    .tab-item:hover .tab-close {
+      opacity: 0.7;
+    }
+    .tab-item .tab-close:hover {
+      opacity: 1;
+      color: var(--vscode-errorForeground);
+    }
   `;
 }
 
