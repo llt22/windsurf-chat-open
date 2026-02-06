@@ -28,6 +28,7 @@ class ExtensionStateManager {
       () => this.panelProvider.getTimeoutMinutes()
     );
     this.workspaceManager = new WorkspaceManager(context.extensionPath);
+    this.panelProvider.setPortGetter(() => this.httpService.getPort());
   }
 
   public async activate() {

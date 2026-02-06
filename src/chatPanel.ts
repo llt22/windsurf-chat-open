@@ -41,11 +41,17 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _isWebviewReady: boolean = false;
   private _timeoutMinutes: number = 240; // 默认4小时
 
+  private _getPortFn?: () => number;
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _version: string
   ) {
     this._resetViewReadyPromise();
+  }
+
+  setPortGetter(fn: () => number) {
+    this._getPortFn = fn;
   }
 
   private _resetViewReadyPromise() {
@@ -79,8 +85,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         this._isWebviewReady = true;
         this._viewReadyResolve?.();
         // 发送当前端口到前端
-        if (this._port > 0) {
-          this._view?.webview.postMessage({ type: 'setPort', port: this._port });
+        const livePort = this._getPortFn ? this._getPortFn() : this._port;
+        if (livePort > 0) {
+          this._port = livePort;
+          this._view?.webview.postMessage({ type: 'setPort', port: livePort });
         }
         // 发送当前超时配置到前端
         this._view?.webview.postMessage({ type: 'setTimeoutMinutes', timeoutMinutes: this._timeoutMinutes });
