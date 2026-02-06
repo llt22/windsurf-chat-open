@@ -70,10 +70,6 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = getPanelHtml(this._version);
 
-    if (this._port > 0) {
-      webviewView.webview.postMessage({ type: 'setPort', port: this._port });
-    }
-
     webviewView.webview.onDidReceiveMessage((message) => this._handleWebviewMessage(message));
   }
 
@@ -83,6 +79,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       case 'ready':
         this._isWebviewReady = true;
         this._viewReadyResolve?.();
+        // 发送当前端口到前端
+        if (this._port > 0) {
+          this._view?.webview.postMessage({ type: 'setPort', port: this._port });
+        }
         // 发送当前超时配置到前端
         this._view?.webview.postMessage({ type: 'setTimeoutMinutes', timeoutMinutes: this._timeoutMinutes });
         // 发送工作区根目录到前端
