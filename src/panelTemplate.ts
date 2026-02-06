@@ -1,88 +1,31 @@
-import { getPanelStyles } from './panelStyles';
-import { getPanelScript } from './panelScript';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
- * 获取 webview 的 HTML 内容
+ * 获取 webview 资源文件所在目录
+ * 开发时在 src/webview/，编译后在 dist/webview/
+ */
+function getWebviewDir(): string {
+  // 优先使用 dist/webview（编译后），其次 src/webview（开发时）
+  const distDir = path.join(__dirname, 'webview');
+  if (fs.existsSync(distDir)) {
+    return distDir;
+  }
+  return path.join(__dirname, '..', 'src', 'webview');
+}
+
+/**
+ * 获取 webview 的 HTML 内容（从独立文件加载）
  */
 export function getPanelHtml(version: string = '0.0.0'): string {
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WindsurfChat</title>
-  <style>
-    ${getPanelStyles()}
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="header-bar">
-      <div class="header-left">
-        <h1>WindsurfChat Open</h1>
-        <span class="version">v${version}</span>
-      </div>
-      <div class="header-right">
-        <button class="settings-toggle" id="settingsToggle" title="设置">
-          <span class="settings-toggle-icon">⚙️</span>
-        </button>
-        <div class="port-display">
-          <span id="portInfo">端口: --</span>
-          <span class="connection-status" id="connectionStatus"></span>
-        </div>
-      </div>
-    </div>
-  </div>
+  const dir = getWebviewDir();
+  const html = fs.readFileSync(path.join(dir, 'panel.html'), 'utf-8');
+  const css = fs.readFileSync(path.join(dir, 'panel.css'), 'utf-8');
+  const js = fs.readFileSync(path.join(dir, 'panel.js'), 'utf-8');
 
-  <div class="config-bar" id="configBar">
-    <div class="config-bar-row">
-      <div class="config-item">
-        <label for="timeoutInput">超时时间:</label>
-        <input type="number" id="timeoutInput" min="0" step="1" value="240" />
-        <span>分钟</span>
-        <span class="hint-text">(0=不限制)</span>
-      </div>
-      <div class="timeout-presets">
-        <button class="timeout-preset-btn" data-minutes="0">不限制</button>
-        <button class="timeout-preset-btn" data-minutes="30">30分钟</button>
-        <button class="timeout-preset-btn" data-minutes="240">4小时</button>
-      </div>
-      <button id="confirmConfigBtn" class="confirm-config-btn">确定</button>
-    </div>
-  </div>
-  
-  <div class="tab-bar" id="tabBar">
-    <div class="tab-bar-inner" id="tabBarInner"></div>
-  </div>
-
-  <div class="waiting-indicator" id="waitingIndicator">
-    <span class="waiting-indicator-text">✨ AI 等待你的输入...</span>
-    <span id="countdown" class="countdown"></span>
-  </div>
-  
-  <div class="prompt-area">
-    <div id="promptText">等待 AI 输出...</div>
-  </div>
-  
-  <div class="input-area">
-    <div id="inputText" contenteditable="true" data-placeholder="输入反馈或指令...支持拖拽图片、文本文件和文件夹"></div>
-    <div class="image-preview" id="imagePreview"></div>
-    <div class="buttons">
-      <button class="btn-primary" id="btnSubmit">提交 (Ctrl+Enter)</button>
-      <button class="btn-danger" id="btnEnd">结束对话</button>
-    </div>
-    <div class="hint">空提交=继续 | Ctrl+Enter 提交 | Esc 结束</div>
-  </div>
-  
-  <div class="modal" id="imageModal">
-    <button class="modal-close" id="modalClose">×</button>
-    <img id="modalImage" src="" alt="preview">
-  </div>
-
-  <script>
-    ${getPanelScript()}
-  </script>
-</body>
-</html>`;
+  return html
+    .replace('{{STYLES}}', css)
+    .replace('{{SCRIPT}}', js)
+    .replace('{{VERSION}}', version);
 }
 

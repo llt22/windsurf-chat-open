@@ -2,7 +2,7 @@
   "name": "windsurf-chat-open",
   "displayName": "WindsurfChatOpen",
   "description": "开源版 WindsurfChat - 让 AI 停下来听你说话",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/nicepkg/windsurf-chat-open"
@@ -57,7 +57,8 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "copy-webview": "node -e \"const fs=require('fs'),p=require('path'),s=p.join('src','webview'),d=p.join('dist','webview');fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))\"",
+    "compile": "tsc -p ./ && npm run copy-webview",
     "watch": "tsc -watch -p ./",
     "package": "npm run compile && npx @vscode/vsce package --out releases/"
   },
