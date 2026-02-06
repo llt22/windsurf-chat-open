@@ -2,7 +2,7 @@
   "name": "windsurf-chat-open",
   "displayName": "WindsurfChatOpen",
   "description": "Give Windsurf AI a pause button — review, feedback, then continue.",
-  "version": "1.8.1",
+  "version": "2.0.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/nicepkg/windsurf-chat-open"
