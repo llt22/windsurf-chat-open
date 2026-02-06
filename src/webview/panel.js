@@ -48,15 +48,16 @@
       remainingSeconds: timeoutMinutes === 0 ? -1 : timeoutMinutes * 60,
       countdownInterval: null, displayInterval: null, isCountdownRunning: false
     });
-    addTab(requestId, tabCounter);
+    addTab(requestId, tabCounter, prompt);
     switchToConversation(requestId);
     startConvCountdown(requestId);
   }
 
-  function addTab(rid, idx) {
+  function addTab(rid, idx, prompt) {
+    const short = (prompt || '').replace(/\s+/g, ' ').trim().substring(0, 20) || ('\u5BF9\u8BDD ' + idx);
     const t = document.createElement('div'); t.className = 'tab-item'; t.setAttribute('data-id', rid);
     const dot = document.createElement('span'); dot.className = 'tab-dot';
-    const lbl = document.createElement('span'); lbl.className = 'tab-label'; lbl.textContent = '\u5BF9\u8BDD ' + idx;
+    const lbl = document.createElement('span'); lbl.className = 'tab-label'; lbl.textContent = short; lbl.title = prompt || '';
     const cls = document.createElement('span'); cls.className = 'tab-close'; cls.textContent = '\u00D7';
     cls.onclick = (e) => { e.stopPropagation(); endConversation(rid); };
     t.appendChild(dot); t.appendChild(lbl); t.appendChild(cls);
