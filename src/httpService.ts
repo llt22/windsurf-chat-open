@@ -85,7 +85,6 @@ export class HttpService {
     private startConnectionCheck() {
         // 每30秒检查一次连接状态
         this.connectionCheckInterval = setInterval(() => {
-            const now = Date.now();
             for (const [requestId, pending] of this.pendingRequests.entries()) {
                 // 检查响应对象是否还可写
                 if (pending.res.writableEnded || pending.res.destroyed) {

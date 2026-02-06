@@ -62,9 +62,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
-    if (this._viewReadyResolve) {
-      this._viewReadyResolve();
-    }
+    // 重建 webview 时重置 ready 状态，等待新的 'ready' 消息
     this._resetViewReadyPromise();
     this._view = webviewView;
 

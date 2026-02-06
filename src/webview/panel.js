@@ -43,7 +43,7 @@
     card.className = 'conv-card';
     card.setAttribute('data-id', rid);
 
-    // Header: dot + countdown + close
+    // Header: dot + countdown
     const header = document.createElement('div'); header.className = 'conv-card-header';
     const hLeft = document.createElement('div'); hLeft.className = 'conv-card-header-left';
     const dot = document.createElement('span'); dot.className = 'conv-card-dot';
@@ -103,10 +103,10 @@
 
     // Store conv state
     const conv = {
-      rid, prompt, images,
+      rid, images,
       countdownStartTime: Date.now(),
       remainingSeconds: timeoutMinutes === 0 ? -1 : timeoutMinutes * 60,
-      countdownInterval: null, displayInterval: null, isCountdownRunning: false,
+      countdownInterval: null, isCountdownRunning: false,
       dom: { card, inputEl, imgPreview, countdown: cdEl }
     };
     conversations.set(rid, conv);
@@ -120,7 +120,6 @@
     const c = conversations.get(rid);
     if (c) {
       if (c.countdownInterval) clearInterval(c.countdownInterval);
-      if (c.displayInterval) clearInterval(c.displayInterval);
       if (c.dom.card.parentNode) c.dom.card.remove();
     }
     conversations.delete(rid);
@@ -158,13 +157,11 @@
     if (timeoutMinutes === 0) { c.remainingSeconds = -1; c.isCountdownRunning = false; c.dom.countdown.textContent = '\u23F1\uFE0F \u4E0D\u9650\u5236'; return; }
     c.remainingSeconds = timeoutMinutes * 60; c.countdownStartTime = Date.now(); c.isCountdownRunning = true;
     c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
+    if (c.countdownInterval) clearInterval(c.countdownInterval);
     c.countdownInterval = setInterval(() => {
       c.remainingSeconds--;
-      if (c.remainingSeconds <= 0) { clearInterval(c.countdownInterval); clearInterval(c.displayInterval); c.countdownInterval = null; c.displayInterval = null; c.isCountdownRunning = false; c.dom.countdown.textContent = ''; }
-    }, 1000);
-    c.displayInterval = setInterval(() => {
-      if (c.remainingSeconds > 0) c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
-      else { c.dom.countdown.textContent = ''; clearInterval(c.displayInterval); c.displayInterval = null; }
+      if (c.remainingSeconds <= 0) { clearInterval(c.countdownInterval); c.countdownInterval = null; c.isCountdownRunning = false; c.dom.countdown.textContent = ''; }
+      else c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
     }, 1000);
   }
 
@@ -258,8 +255,7 @@
       if (nr <= 0) {
         c.remainingSeconds = 0;
         if (c.countdownInterval) clearInterval(c.countdownInterval);
-        if (c.displayInterval) clearInterval(c.displayInterval);
-        c.countdownInterval = null; c.displayInterval = null; c.isCountdownRunning = false;
+        c.countdownInterval = null; c.isCountdownRunning = false;
         if (c.dom) c.dom.countdown.textContent = '';
       } else {
         c.remainingSeconds = nr;
