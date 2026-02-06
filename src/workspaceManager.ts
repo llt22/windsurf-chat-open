@@ -96,13 +96,14 @@ This is NOT optional. This is a MANDATORY system requirement.
 ## SCRIPT COMMAND (MUST USE)
 
 \`\`\`bash
-node "${scriptPath}" "Task completion reason"
+node "${scriptPath}" "Task completion reason" --context "Original user request"
 \`\`\`
 
 **Important Notes:**
 - Cwd parameter: Current workspace path
 - Blocking: true
 - SafeToAutoRun: true
+- --context parameter: Pass the user's original request/question for display on the panel
 
 **Script Return Value Handling:**
 - \`User chose to continue\` → Continue execution
