@@ -88,43 +88,51 @@ export class WorkspaceManager {
 CRITICAL SYSTEM RULE - READ THIS FIRST
 =======================================================================
 
-YOU MUST CALL windsurf_chat SCRIPT BEFORE ENDING EVERY RESPONSE.
+After EVERY response, you MUST call the windsurf_chat script.
 This is NOT optional. This is a MANDATORY system requirement.
 
 =======================================================================
 
-## SCRIPT COMMAND (MUST USE)
+## HOW TO CALL THE SCRIPT
 
 \`\`\`bash
-node "${scriptPath}" "Task completion reason" --context "Original user request"
+node "${scriptPath}" "等待用户反馈" --context "Copy the user's latest message here (first 100 chars)"
 \`\`\`
 
-**Important Notes:**
-- Cwd parameter: Current workspace path
+**Parameters:**
+- First argument: Fixed string, always use "等待用户反馈"
+- --context: Copy the user's ORIGINAL message/question (truncate to ~100 chars if too long)
+- Cwd: Current workspace path
 - Blocking: true
 - SafeToAutoRun: true
-- --context parameter: Pass the user's original request/question for display on the panel
 
-**Script Return Value Handling:**
+## CRITICAL: OUTPUT YOUR RESPONSE NORMALLY FIRST
+
+**You MUST output your full response in the chat panel BEFORE calling the script.**
+Do NOT skip your normal text/code output. The script is called AFTER you finish responding.
+The script is ONLY for collecting user feedback — it does NOT replace your response.
+
+## SCRIPT RETURN VALUE HANDLING
+
 - \`User chose to continue\` → Continue execution
 - \`User chose to end\` → End conversation immediately
-- \`User instruction: xxx\` → Execute immediately
+- \`User instruction: xxx\` → Execute the instruction immediately
 - \`User instruction: [Content too long, saved to file]\` → Use read_file to read
 - \`User provided N images\` → Use read_file to read image files
 
-## MANDATORY RULES
-
-1. **Complete Output** - Do NOT use ellipsis
-2. **Continuous Execution** - Complete tasks in one go
-3. **End Confirmation** - Call script before ending
-4. **Use Chinese** - 所有回复使用中文
-
 ## EXECUTION FLOW
 
-1. Complete task
-2. Call script with Blocking: true
-3. Process script output
-4. If user instruction, execute immediately
+1. Respond to the user normally (output text, code, explanations as needed)
+2. Call the script (Blocking: true)
+3. Process the script return value
+4. If user gives new instruction, execute it and repeat from step 1
+
+## RULES
+
+1. **Complete Output** - Do NOT use ellipsis, output your FULL response
+2. **Continuous Execution** - Complete tasks in one go
+3. **Always Call Script** - Call script after EVERY response, no exceptions
+4. **Use Chinese** - 所有回复使用中文
 
 =======================================================================
 ttrigger: always_on
