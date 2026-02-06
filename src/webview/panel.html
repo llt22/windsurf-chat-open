@@ -42,28 +42,12 @@
     </div>
   </div>
 
-  <div class="tab-bar" id="tabBar">
-    <div class="tab-bar-inner" id="tabBarInner"></div>
+  <div class="empty-state" id="emptyState">
+    <span class="empty-icon">💬</span>
+    <span>等待 AI 输出...</span>
   </div>
 
-  <div class="waiting-indicator" id="waitingIndicator">
-    <span class="waiting-indicator-text">✨ AI 等待你的输入...</span>
-    <span id="countdown" class="countdown"></span>
-  </div>
-
-  <div class="prompt-area">
-    <div id="promptText">等待 AI 输出...</div>
-  </div>
-
-  <div class="input-area">
-    <div id="inputText" contenteditable="true" data-placeholder="输入反馈或指令...支持拖拽图片、文本文件和文件夹"></div>
-    <div class="image-preview" id="imagePreview"></div>
-    <div class="buttons">
-      <button class="btn-primary" id="btnSubmit">提交 (Ctrl+Enter)</button>
-      <button class="btn-danger" id="btnEnd">结束对话</button>
-    </div>
-    <div class="hint">空提交=继续 | Ctrl+Enter 提交 | Esc 结束</div>
-  </div>
+  <div class="conv-list" id="convList"></div>
 
   <div class="modal" id="imageModal">
     <button class="modal-close" id="modalClose">×</button>

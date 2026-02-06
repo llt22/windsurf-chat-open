@@ -2,29 +2,22 @@
 (function () {
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
-  const inputText = $('inputText');
-  const promptText = $('promptText');
-  const countdown = $('countdown');
-  const imagePreview = $('imagePreview');
   const imageModal = $('imageModal');
   const modalImage = $('modalImage');
-  const waitingIndicator = $('waitingIndicator');
   const timeoutInput = $('timeoutInput');
   const connectionStatus = $('connectionStatus');
-  const tabBar = $('tabBar');
-  const tabBarInner = $('tabBarInner');
   const settingsToggle = $('settingsToggle');
   const configBar = $('configBar');
+  const convList = $('convList');
+  const emptyState = $('emptyState');
 
   const conversations = new Map();
-  let activeRequestId = null;
   let currentPort = 0;
   let workspaceRoot = '';
   const MAX_IMAGE_COUNT = 10;
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
   let timeoutMinutes = 240;
   let fileChipIdCounter = 0;
-  let _images = [];
 
   const TEXT_EXTS = [
     '.txt','.md','.json','.xml','.yaml','.yml','.toml',
@@ -37,154 +30,107 @@
   ];
   function isTextFileByName(n) { return TEXT_EXTS.some(e => n.toLowerCase().endsWith(e)); }
 
-  // == Tab ==
-  function createConversation(requestId, prompt) {
-    conversations.set(requestId, {
-      requestId, prompt,
-      inputHtml: '', images: [], imagePreviewHtml: '',
+  function updateEmptyState() {
+    emptyState.classList.toggle('hidden', conversations.size > 0);
+  }
+
+  function fmtCD(s) { return '\u23F1\uFE0F ' + Math.floor(s/60) + ':' + (s%60).toString().padStart(2,'0'); }
+
+  // == Conversation Card ==
+  function createConversation(rid, prompt) {
+    const images = [];
+    const card = document.createElement('div');
+    card.className = 'conv-card';
+    card.setAttribute('data-id', rid);
+
+    // Header: dot + countdown + close
+    const header = document.createElement('div'); header.className = 'conv-card-header';
+    const hLeft = document.createElement('div'); hLeft.className = 'conv-card-header-left';
+    const dot = document.createElement('span'); dot.className = 'conv-card-dot';
+    const cdEl = document.createElement('span'); cdEl.className = 'conv-card-countdown';
+    hLeft.appendChild(dot); hLeft.appendChild(cdEl);
+    const closeBtn = document.createElement('button'); closeBtn.className = 'conv-card-close'; closeBtn.textContent = '\u00D7'; closeBtn.title = '\u7ED3\u675F\u5BF9\u8BDD';
+    closeBtn.onclick = () => endConv(rid);
+    header.appendChild(hLeft); header.appendChild(closeBtn);
+
+    // Prompt
+    const promptEl = document.createElement('div'); promptEl.className = 'conv-card-prompt'; promptEl.textContent = prompt;
+
+    // Input
+    const inputEl = document.createElement('div'); inputEl.className = 'conv-card-input'; inputEl.contentEditable = 'true';
+
+    // Image preview
+    const imgPreview = document.createElement('div'); imgPreview.className = 'image-preview';
+
+    // Actions
+    const actions = document.createElement('div'); actions.className = 'conv-card-actions';
+    const submitBtn = document.createElement('button'); submitBtn.className = 'btn-primary'; submitBtn.textContent = '\u63D0\u4EA4';
+    submitBtn.onclick = () => submitConv(rid);
+    const endBtn = document.createElement('button'); endBtn.className = 'btn-danger'; endBtn.textContent = '\u7ED3\u675F';
+    endBtn.onclick = () => endConv(rid);
+    const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = 'Ctrl+Enter \u63D0\u4EA4 | Esc \u7ED3\u675F';
+    actions.appendChild(submitBtn); actions.appendChild(endBtn); actions.appendChild(hint);
+
+    card.appendChild(header); card.appendChild(promptEl); card.appendChild(inputEl); card.appendChild(imgPreview); card.appendChild(actions);
+
+    // Keyboard
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); submitConv(rid); }
+      else if (e.key === 'Escape') endConv(rid);
+    });
+
+    // Paste image
+    inputEl.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items; if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) { e.preventDefault(); const f = item.getAsFile(); if (f) addImageToCard(rid, f); }
+      }
+    });
+
+    // Drag
+    inputEl.addEventListener('drop', (e) => { handleCardDrop(e, rid); });
+    inputEl.addEventListener('dragover', (e) => { e.preventDefault(); inputEl.classList.add('drag-over'); });
+    inputEl.addEventListener('dragleave', () => { inputEl.classList.remove('drag-over'); });
+
+    // Store conv state
+    const conv = {
+      rid, prompt, images,
       countdownStartTime: Date.now(),
       remainingSeconds: timeoutMinutes === 0 ? -1 : timeoutMinutes * 60,
-      countdownInterval: null, displayInterval: null, isCountdownRunning: false
-    });
-    addTab(requestId, prompt);
-    switchToConversation(requestId);
-    startConvCountdown(requestId);
+      countdownInterval: null, displayInterval: null, isCountdownRunning: false,
+      dom: { card, inputEl, imgPreview, countdown: cdEl }
+    };
+    conversations.set(rid, conv);
+    convList.prepend(card);
+    updateEmptyState();
+    inputEl.focus();
+    startCountdown(rid);
   }
 
-  function tabLabel(idx, prompt) {
-    const preview = (prompt || '').replace(/\s+/g, ' ').trim().substring(0, 12);
-    const suffix = preview ? (preview.length < (prompt || '').trim().length ? preview + '\u2026' : preview) : '\u5F85\u5904\u7406';
-    return '#' + idx + ' \u00B7 ' + suffix;
-  }
-
-  function addTab(rid, prompt) {
-    const idx = tabBarInner.children.length + 1;
-    const t = document.createElement('div'); t.className = 'tab-item'; t.setAttribute('data-id', rid);
-    const dot = document.createElement('span'); dot.className = 'tab-dot';
-    const lbl = document.createElement('span'); lbl.className = 'tab-label'; lbl.textContent = tabLabel(idx, prompt); lbl.title = prompt || '';
-    const cls = document.createElement('span'); cls.className = 'tab-close'; cls.textContent = '\u00D7';
-    cls.onclick = (e) => { e.stopPropagation(); endConversation(rid); };
-    t.appendChild(dot); t.appendChild(lbl); t.appendChild(cls);
-    t.onclick = () => switchToConversation(rid);
-    tabBarInner.appendChild(t);
-    updateTabBarVisibility();
-  }
-
-  function renumberTabs() {
-    const tabs = tabBarInner.querySelectorAll('.tab-item');
-    tabs.forEach((t, i) => {
-      const rid = t.getAttribute('data-id');
-      const conv = conversations.get(rid);
-      const lbl = t.querySelector('.tab-label');
-      if (lbl && conv) { lbl.textContent = tabLabel(i + 1, conv.prompt); }
-    });
-  }
-
-  function updateTabBarVisibility() { tabBar.classList.toggle('show', conversations.size > 0); }
-
-  function saveCurrentConvState() {
-    if (!activeRequestId) return;
-    const c = conversations.get(activeRequestId); if (!c) return;
-    c.inputHtml = inputText.innerHTML; c.images = _images.slice(); c.imagePreviewHtml = imagePreview.innerHTML;
-  }
-
-  function switchToConversation(rid) {
-    if (activeRequestId === rid) { updateTabHighlight(rid); return; }
-    saveCurrentConvState();
-    activeRequestId = rid;
-    const c = conversations.get(rid); if (!c) return;
-    promptText.textContent = c.prompt;
-    waitingIndicator.classList.add('show');
-    inputText.innerHTML = c.inputHtml;
-    _images = c.images.slice();
-    imagePreview.innerHTML = c.imagePreviewHtml;
-    restoreCountdownDisplay(c);
-    updateTabHighlight(rid);
-    inputText.focus();
-  }
-
-  function updateTabHighlight(rid) {
-    tabBarInner.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.getAttribute('data-id') === rid));
-  }
-
-  function removeConversation(rid) {
+  function removeConv(rid) {
     const c = conversations.get(rid);
-    if (c) { if (c.countdownInterval) clearInterval(c.countdownInterval); if (c.displayInterval) clearInterval(c.displayInterval); }
+    if (c) {
+      if (c.countdownInterval) clearInterval(c.countdownInterval);
+      if (c.displayInterval) clearInterval(c.displayInterval);
+      if (c.dom.card.parentNode) c.dom.card.remove();
+    }
     conversations.delete(rid);
-    const el = tabBarInner.querySelector('[data-id="' + rid + '"]'); if (el) el.remove();
-    renumberTabs();
-    updateTabBarVisibility();
-    if (activeRequestId === rid) {
-      activeRequestId = null;
-      const keys = Array.from(conversations.keys());
-      if (keys.length > 0) { switchToConversation(keys[keys.length - 1]); }
-      else { promptText.textContent = '\u7B49\u5F85 AI \u8F93\u51FA...'; waitingIndicator.classList.remove('show'); countdown.textContent = ''; inputText.innerHTML = ''; _images = []; imagePreview.innerHTML = ''; }
-    }
+    updateEmptyState();
   }
 
-  function endConversation(rid) { vscode.postMessage({ type: 'end', requestId: rid }); removeConversation(rid); }
+  function endConv(rid) { vscode.postMessage({ type: 'end', requestId: rid }); removeConv(rid); }
 
-  // == Countdown ==
-  function fmtCD(s) { return '\u23F1\uFE0F ' + Math.floor(s/60) + ':' + (s%60).toString().padStart(2,'0'); }
-  function restoreCountdownDisplay(c) {
-    if (!c.isCountdownRunning && c.remainingSeconds === -1) countdown.textContent = '\u23F1\uFE0F \u4E0D\u9650\u5236';
-    else if (c.isCountdownRunning && c.remainingSeconds > 0) countdown.textContent = fmtCD(c.remainingSeconds);
-    else countdown.textContent = '';
-  }
-  function startConvCountdown(rid) {
+  function submitConv(rid) {
     const c = conversations.get(rid); if (!c) return;
-    if (c.countdownInterval) clearInterval(c.countdownInterval);
-    if (c.displayInterval) clearInterval(c.displayInterval);
-    if (timeoutMinutes === 0) { c.remainingSeconds = -1; c.isCountdownRunning = false; if (activeRequestId === rid) countdown.textContent = '\u23F1\uFE0F \u4E0D\u9650\u5236'; return; }
-    c.remainingSeconds = timeoutMinutes * 60; c.countdownStartTime = Date.now(); c.isCountdownRunning = true;
-    c.countdownInterval = setInterval(() => {
-      c.remainingSeconds--;
-      if (c.remainingSeconds <= 0) { clearInterval(c.countdownInterval); clearInterval(c.displayInterval); c.countdownInterval = null; c.displayInterval = null; c.isCountdownRunning = false; if (activeRequestId === rid) countdown.textContent = ''; }
-    }, 1000);
-    c.displayInterval = setInterval(() => {
-      if (activeRequestId === rid) { if (c.remainingSeconds > 0) countdown.textContent = fmtCD(c.remainingSeconds); else { countdown.textContent = ''; clearInterval(c.displayInterval); c.displayInterval = null; } }
-    }, 1000);
-  }
-  function updateCountdownForNewTimeout() {
-    for (const [,c] of conversations.entries()) {
-      if (!c.isCountdownRunning) continue;
-      const nr = timeoutMinutes * 60 - Math.floor((Date.now() - c.countdownStartTime) / 1000);
-      if (nr <= 0) { c.remainingSeconds = 0; if (c.countdownInterval) clearInterval(c.countdownInterval); if (c.displayInterval) clearInterval(c.displayInterval); c.countdownInterval = null; c.displayInterval = null; c.isCountdownRunning = false; }
-      else c.remainingSeconds = nr;
-    }
-    if (activeRequestId) { const c = conversations.get(activeRequestId); if (c) restoreCountdownDisplay(c); }
-  }
-
-  // == Settings ==
-  settingsToggle.addEventListener('click', () => { settingsToggle.classList.toggle('expanded'); configBar.classList.toggle('show'); });
-  document.querySelectorAll('.timeout-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => { timeoutInput.value = parseInt(btn.getAttribute('data-minutes')); });
-  });
-  $('confirmConfigBtn').addEventListener('click', () => {
-    const v = parseInt(timeoutInput.value);
-    if (!isNaN(v) && v >= 0) { timeoutMinutes = v; vscode.postMessage({ type: 'setTimeout', timeoutMinutes: v }); updateCountdownForNewTimeout(); settingsToggle.classList.remove('expanded'); configBar.classList.remove('show'); }
-  });
-
-  // == Submit / End ==
-  $('btnSubmit').onclick = submit;
-  $('btnEnd').onclick = () => { if (activeRequestId) endConversation(activeRequestId); };
-  $('modalClose').onclick = closeModal;
-  imageModal.onclick = (e) => { if (e.target === imageModal) closeModal(); };
-  function showModal(src) { modalImage.src = src; imageModal.classList.add('show'); }
-  function closeModal() { imageModal.classList.remove('show'); }
-
-  function submit() {
-    if (!activeRequestId) return;
-    const rid = activeRequestId;
-    const text = getTextWithFilePaths();
-    const valid = _images.filter(i => i !== null);
+    const text = getCardText(c.dom.inputEl);
+    const valid = c.images.filter(i => i !== null);
     if (text || valid.length > 0) vscode.postMessage({ type: 'submit', text, images: valid, requestId: rid });
     else vscode.postMessage({ type: 'continue', requestId: rid });
-    removeConversation(rid);
+    removeConv(rid);
   }
 
-  function getTextWithFilePaths() {
-    const cl = inputText.cloneNode(true);
+  function getCardText(inputEl) {
+    const cl = inputEl.cloneNode(true);
     cl.querySelectorAll('.file-chip').forEach(chip => {
       let p = chip.getAttribute('data-path') || '';
       if (workspaceRoot && p.startsWith(workspaceRoot)) {
@@ -197,32 +143,49 @@
     return cl.textContent.trim();
   }
 
-  // == Keyboard ==
-  inputText.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); submit(); }
-    else if (e.key === 'Escape' && activeRequestId) endConversation(activeRequestId);
-  });
+  // == Countdown ==
+  function startCountdown(rid) {
+    const c = conversations.get(rid); if (!c) return;
+    if (timeoutMinutes === 0) { c.remainingSeconds = -1; c.isCountdownRunning = false; c.dom.countdown.textContent = '\u23F1\uFE0F \u4E0D\u9650\u5236'; return; }
+    c.remainingSeconds = timeoutMinutes * 60; c.countdownStartTime = Date.now(); c.isCountdownRunning = true;
+    c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
+    c.countdownInterval = setInterval(() => {
+      c.remainingSeconds--;
+      if (c.remainingSeconds <= 0) { clearInterval(c.countdownInterval); clearInterval(c.displayInterval); c.countdownInterval = null; c.displayInterval = null; c.isCountdownRunning = false; c.dom.countdown.textContent = ''; }
+    }, 1000);
+    c.displayInterval = setInterval(() => {
+      if (c.remainingSeconds > 0) c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
+      else { c.dom.countdown.textContent = ''; clearInterval(c.displayInterval); c.displayInterval = null; }
+    }, 1000);
+  }
 
-  // == Paste ==
-  inputText.addEventListener('paste', (e) => {
-    const items = e.clipboardData?.items; if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith('image/')) { e.preventDefault(); const f = item.getAsFile(); if (f) addImage(f); }
-    }
-  });
+  // == Image ==
+  function addImageToCard(rid, file) {
+    const c = conversations.get(rid); if (!c) return;
+    if (c.images.filter(i => i !== null).length >= MAX_IMAGE_COUNT) { alert('\u56FE\u7247\u6570\u91CF\u8D85\u8FC7\u9650\u5236'); return; }
+    if (file.size > MAX_IMAGE_SIZE) { alert('\u56FE\u7247\u5927\u5C0F\u8D85\u8FC7\u9650\u5236\uFF085MB\uFF09'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const url = ev.target.result, idx = c.images.length; c.images.push(url);
+      const w = document.createElement('div'); w.className = 'img-wrapper';
+      const img = document.createElement('img'); img.src = url; img.onclick = () => showModal(url);
+      const d = document.createElement('button'); d.className = 'img-delete'; d.textContent = '\u00D7';
+      d.onclick = (e) => { e.stopPropagation(); c.images[idx] = null; w.remove(); };
+      w.appendChild(img); w.appendChild(d); c.dom.imgPreview.appendChild(w);
+    };
+    reader.readAsDataURL(file);
+  }
 
   // == Drag ==
-  inputText.addEventListener('drop', handleDrop);
-  inputText.addEventListener('dragover', (e) => { e.preventDefault(); inputText.classList.add('drag-over'); });
-  inputText.addEventListener('dragleave', () => { inputText.classList.remove('drag-over'); });
-
-  function handleDrop(e) {
-    e.preventDefault(); inputText.classList.remove('drag-over');
+  function handleCardDrop(e, rid) {
+    e.preventDefault();
+    const c = conversations.get(rid); if (!c) return;
+    c.dom.inputEl.classList.remove('drag-over');
     const dx = e.clientX, dy = e.clientY, items = e.dataTransfer?.items;
     if (!items || !items.length) return;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      if (it.kind === 'file') { const f = it.getAsFile(); if (f && f.type.startsWith('image/')) addImage(f); }
+      if (it.kind === 'file') { const f = it.getAsFile(); if (f && f.type.startsWith('image/')) addImageToCard(rid, f); }
       if (it.kind === 'string' && it.type === 'text/uri-list') {
         it.getAsString((u) => {
           if (!u) return; let fp = u.trim();
@@ -231,14 +194,14 @@
           fp = decodeURIComponent(fp);
           const pts = fp.split(/[\\/]/), nm = pts.pop() || '';
           const isDir = !nm.includes('.') || nm.startsWith('.');
-          if (isDir || isTextFileByName(nm)) insertFileChipAtPosition(nm, fp, isDir, dx, dy);
+          if (isDir || isTextFileByName(nm)) insertChipInCard(c.dom.inputEl, nm, fp, isDir, dx, dy);
         });
       }
     }
   }
 
   // == File Chip ==
-  function insertFileChipAtPosition(name, path, isFolder, x, y) {
+  function insertChipInCard(inputEl, name, path, isFolder, x, y) {
     let range;
     if (document.caretRangeFromPoint) range = document.caretRangeFromPoint(x, y);
     else if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); range = document.createRange(); range.setStart(p.offsetNode, p.offset); }
@@ -255,23 +218,45 @@
     const sp = document.createTextNode(' '); range.setStartAfter(chip); range.insertNode(sp);
     range.setStartAfter(sp); range.collapse(true);
     const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-    inputText.focus();
+    inputEl.focus();
   }
 
-  // == Image ==
-  function addImage(file) {
-    if (_images.filter(i => i !== null).length >= MAX_IMAGE_COUNT) { alert('图片数量超过限制（最多 ' + MAX_IMAGE_COUNT + ' 张）'); return; }
-    if (file.size > MAX_IMAGE_SIZE) { alert('图片大小超过限制（单张最大 5MB）'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const url = ev.target.result, idx = _images.length; _images.push(url);
-      const w = document.createElement('div'); w.className = 'img-wrapper';
-      const img = document.createElement('img'); img.src = url; img.onclick = () => showModal(url);
-      const d = document.createElement('button'); d.className = 'img-delete'; d.textContent = '\u00D7';
-      d.onclick = (e) => { e.stopPropagation(); _images[idx] = null; w.remove(); };
-      w.appendChild(img); w.appendChild(d); imagePreview.appendChild(w);
-    };
-    reader.readAsDataURL(file);
+  // == Settings ==
+  settingsToggle.addEventListener('click', () => { settingsToggle.classList.toggle('expanded'); configBar.classList.toggle('show'); });
+  document.querySelectorAll('.timeout-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => { timeoutInput.value = parseInt(btn.getAttribute('data-minutes')); });
+  });
+  $('confirmConfigBtn').addEventListener('click', () => {
+    const v = parseInt(timeoutInput.value);
+    if (!isNaN(v) && v >= 0) {
+      timeoutMinutes = v;
+      vscode.postMessage({ type: 'setTimeout', timeoutMinutes: v });
+      updateAllCountdowns();
+      settingsToggle.classList.remove('expanded');
+      configBar.classList.remove('show');
+    }
+  });
+
+  // == Modal ==
+  $('modalClose').onclick = () => { imageModal.classList.remove('show'); };
+  imageModal.onclick = (e) => { if (e.target === imageModal) imageModal.classList.remove('show'); };
+  function showModal(src) { modalImage.src = src; imageModal.classList.add('show'); }
+
+  function updateAllCountdowns() {
+    for (const [, c] of conversations.entries()) {
+      if (!c.isCountdownRunning) continue;
+      const nr = timeoutMinutes * 60 - Math.floor((Date.now() - c.countdownStartTime) / 1000);
+      if (nr <= 0) {
+        c.remainingSeconds = 0;
+        if (c.countdownInterval) clearInterval(c.countdownInterval);
+        if (c.displayInterval) clearInterval(c.displayInterval);
+        c.countdownInterval = null; c.displayInterval = null; c.isCountdownRunning = false;
+        if (c.dom) c.dom.countdown.textContent = '';
+      } else {
+        c.remainingSeconds = nr;
+        if (c.dom) c.dom.countdown.textContent = fmtCD(nr);
+      }
+    }
   }
 
   // == Message Handler ==
@@ -288,7 +273,7 @@
       if (typeof msg.timeoutMinutes === 'number' && msg.timeoutMinutes >= 0) {
         timeoutMinutes = msg.timeoutMinutes;
         timeoutInput.value = msg.timeoutMinutes;
-        updateCountdownForNewTimeout();
+        updateAllCountdowns();
       }
     } else if (msg.type === 'setWorkspaceRoot') {
       if (msg.workspaceRoot) { workspaceRoot = msg.workspaceRoot; }
@@ -297,4 +282,3 @@
 
   vscode.postMessage({ type: 'ready' });
 })();
-

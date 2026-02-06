@@ -17,24 +17,32 @@ body {
 .version { background: var(--vscode-badge-background); padding: 2px 6px; border-radius: 3px; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .header-right { display: flex; align-items: center; gap: 12px; }
 
-/* Prompt */
-.prompt-area { max-height: 120px; overflow-y: auto; margin-bottom: 12px; padding: 6px 0; font-size: 13px; line-height: 1.6; color: var(--vscode-descriptionForeground); }
-#promptText { white-space: pre-wrap; word-break: break-word; }
-#promptText::before { content: '\1F916 '; }
+/* Empty State */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px 0; color: var(--vscode-descriptionForeground); font-size: 13px; opacity: 0.6; }
+.empty-state.hidden { display: none; }
+.empty-icon { font-size: 28px; }
 
-/* Countdown & Waiting */
-.countdown { font-size: 11px; color: var(--vscode-descriptionForeground); opacity: 0.7; margin-left: 8px; }
-.waiting-indicator { display: none; background: var(--vscode-inputValidation-infoBackground); border: 1px solid var(--vscode-inputValidation-infoBorder); border-radius: 4px; padding: 8px 12px; margin-bottom: 12px; animation: pulse 1.5s ease-in-out infinite; }
-.waiting-indicator.show { display: block; }
-.waiting-indicator-text { font-size: 13px; font-weight: 600; color: var(--vscode-inputValidation-infoForeground); }
+/* Conversation List */
+.conv-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-/* Input */
-.input-area { display: flex; flex-direction: column; gap: 8px; }
-#inputText { width: 100%; min-height: 60px; padding: 8px; border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35)); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border-radius: 4px; font-family: inherit; font-size: 13px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
-#inputText:focus { outline: 1px solid var(--vscode-focusBorder); }
-#inputText:empty:before { content: attr(data-placeholder); color: var(--vscode-input-placeholderForeground); opacity: 0.6; }
-#inputText.drag-over { border-color: var(--vscode-focusBorder); background: var(--vscode-list-dropBackground); }
+/* Conversation Card */
+.conv-card { border: 1px solid var(--vscode-widget-border); border-radius: 6px; padding: 12px; background: var(--vscode-editor-background); animation: cardIn 0.2s ease-out; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.conv-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.conv-card-header-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.conv-card-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vscode-testing-iconPassed); flex-shrink: 0; animation: pulse 1.5s ease-in-out infinite; }
+.conv-card-countdown { font-size: 11px; color: var(--vscode-descriptionForeground); opacity: 0.7; white-space: nowrap; }
+.conv-card-close { font-size: 16px; cursor: pointer; opacity: 0.5; padding: 0 4px; transition: opacity 0.15s; background: none; border: none; color: var(--vscode-foreground); }
+.conv-card-close:hover { opacity: 1; color: var(--vscode-errorForeground); }
+.conv-card-prompt { font-size: 13px; line-height: 1.6; color: var(--vscode-descriptionForeground); white-space: pre-wrap; word-break: break-word; margin-bottom: 8px; max-height: 80px; overflow-y: auto; }
+.conv-card-prompt::before { content: '\1F916 '; }
+.conv-card-input { width: 100%; min-height: 48px; max-height: 120px; padding: 8px; border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35)); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border-radius: 4px; font-family: inherit; font-size: 13px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.conv-card-input:focus { outline: 1px solid var(--vscode-focusBorder); }
+.conv-card-input:empty:before { content: '输入反馈...Ctrl+Enter 提交 | Esc 结束'; color: var(--vscode-input-placeholderForeground); opacity: 0.6; }
+.conv-card-input.drag-over { border-color: var(--vscode-focusBorder); background: var(--vscode-list-dropBackground); }
+.conv-card-actions { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+.conv-card-actions .hint { font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: auto; }
 
 /* File Chips */
 .file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; margin: 0 2px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border: 1px solid var(--vscode-widget-border); border-radius: 3px; font-size: 12px; cursor: default; user-select: none; vertical-align: middle; white-space: nowrap; }
@@ -90,17 +98,3 @@ button:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
 .confirm-config-btn:hover { background: var(--vscode-button-hoverBackground); }
 .confirm-config-btn:active { transform: translateY(1px); }
 
-/* Tab Bar */
-.tab-bar { display: none; margin-bottom: 8px; border-bottom: 1px solid var(--vscode-widget-border); }
-.tab-bar.show { display: block; }
-.tab-bar-inner { display: flex; gap: 0; overflow-x: auto; scrollbar-width: thin; }
-.tab-bar-inner::-webkit-scrollbar { height: 3px; }
-.tab-bar-inner::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); border-radius: 3px; }
-.tab-item { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); transition: color 0.15s, border-color 0.15s; flex-shrink: 0; }
-.tab-item:hover { color: var(--vscode-foreground); background: var(--vscode-list-hoverBackground); }
-.tab-item.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder); }
-.tab-item .tab-label { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
-.tab-item .tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vscode-testing-iconPassed); flex-shrink: 0; animation: pulse 1.5s ease-in-out infinite; }
-.tab-item .tab-close { font-size: 14px; line-height: 1; opacity: 0; cursor: pointer; padding: 0 2px; transition: opacity 0.15s; }
-.tab-item:hover .tab-close { opacity: 0.7; }
-.tab-item .tab-close:hover { opacity: 1; color: var(--vscode-errorForeground); }
