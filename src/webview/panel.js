@@ -56,7 +56,10 @@
     // Context (user question)
     let contextEl = null;
     if (context) {
-      contextEl = document.createElement('div'); contextEl.className = 'conv-card-context'; contextEl.textContent = context;
+      contextEl = document.createElement('div'); contextEl.className = 'conv-card-context';
+      const maxLen = 200;
+      contextEl.textContent = context.length > maxLen ? context.substring(0, maxLen) + '\u2026' : context;
+      if (context.length > maxLen) contextEl.title = context;
     }
 
     // Prompt (AI summary)
