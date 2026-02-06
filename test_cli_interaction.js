@@ -11,7 +11,7 @@ const COLORS = {
 console.log(COLORS.Cyan + "[测试启动] 正在模拟 AI 调用 CLI 脚本并与之交互..." + COLORS.Reset);
 
 // 启动 CLI 脚本
-const child = spawn('node', [path.join(__dirname, 'lib', 'windsurf_chat_cli.js'), "这是一次模拟测试"], {
+const child = spawn('node', [path.join(__dirname, 'lib', 'windsurf_chat.cjs'), "这是一次模拟测试"], {
     stdio: ['pipe', 'pipe', 'inherit'] // 我们接管输入和输出
 });
 

@@ -135,7 +135,7 @@ The script is ONLY for collecting user feedback — it does NOT replace your res
 4. **Use Chinese** - 所有回复使用中文
 
 =======================================================================
-ttrigger: always_on
+trigger: always_on
 alwaysApply: true
 `;
     }
