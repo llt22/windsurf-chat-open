@@ -33,8 +33,6 @@ body {
 .conv-card-header-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .conv-card-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vscode-testing-iconPassed); flex-shrink: 0; animation: pulse 1.5s ease-in-out infinite; }
 .conv-card-countdown { font-size: 11px; color: var(--vscode-descriptionForeground); opacity: 0.7; white-space: nowrap; }
-.conv-card-close { font-size: 16px; cursor: pointer; opacity: 0.5; padding: 0 4px; transition: opacity 0.15s; background: none; border: none; color: var(--vscode-foreground); }
-.conv-card-close:hover { opacity: 1; color: var(--vscode-errorForeground); }
 .conv-card-context { font-size: 12px; line-height: 1.5; color: var(--vscode-foreground); opacity: 0.85; white-space: pre-wrap; word-break: break-word; margin-bottom: 6px; padding: 6px 8px; background: var(--vscode-textBlockQuote-background); border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-focusBorder)); border-radius: 2px; max-height: 60px; overflow-y: auto; }
 .conv-card-context::before { content: '\1F464 '; }
 .conv-card-prompt { font-size: 13px; line-height: 1.6; color: var(--vscode-descriptionForeground); white-space: pre-wrap; word-break: break-word; margin-bottom: 8px; max-height: 80px; overflow-y: auto; }

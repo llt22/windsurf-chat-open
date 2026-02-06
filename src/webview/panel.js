@@ -49,9 +49,7 @@
     const dot = document.createElement('span'); dot.className = 'conv-card-dot';
     const cdEl = document.createElement('span'); cdEl.className = 'conv-card-countdown';
     hLeft.appendChild(dot); hLeft.appendChild(cdEl);
-    const closeBtn = document.createElement('button'); closeBtn.className = 'conv-card-close'; closeBtn.textContent = '\u00D7'; closeBtn.title = '\u7ED3\u675F\u5BF9\u8BDD';
-    closeBtn.onclick = () => endConv(rid);
-    header.appendChild(hLeft); header.appendChild(closeBtn);
+    header.appendChild(hLeft);
 
     // Context (user question)
     let contextEl = null;
