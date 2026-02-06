@@ -37,7 +37,7 @@
   function fmtCD(s) { return '\u23F1\uFE0F ' + Math.floor(s/60) + ':' + (s%60).toString().padStart(2,'0'); }
 
   // == Conversation Card ==
-  function createConversation(rid, prompt) {
+  function createConversation(rid, prompt, context) {
     const images = [];
     const card = document.createElement('div');
     card.className = 'conv-card';
@@ -53,7 +53,13 @@
     closeBtn.onclick = () => endConv(rid);
     header.appendChild(hLeft); header.appendChild(closeBtn);
 
-    // Prompt
+    // Context (user question)
+    let contextEl = null;
+    if (context) {
+      contextEl = document.createElement('div'); contextEl.className = 'conv-card-context'; contextEl.textContent = context;
+    }
+
+    // Prompt (AI summary)
     const promptEl = document.createElement('div'); promptEl.className = 'conv-card-prompt'; promptEl.textContent = prompt;
 
     // Input
@@ -71,7 +77,9 @@
     const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = 'Ctrl+Enter \u63D0\u4EA4 | Esc \u7ED3\u675F';
     actions.appendChild(submitBtn); actions.appendChild(endBtn); actions.appendChild(hint);
 
-    card.appendChild(header); card.appendChild(promptEl); card.appendChild(inputEl); card.appendChild(imgPreview); card.appendChild(actions);
+    card.appendChild(header);
+    if (contextEl) card.appendChild(contextEl);
+    card.appendChild(promptEl); card.appendChild(inputEl); card.appendChild(imgPreview); card.appendChild(actions);
 
     // Keyboard
     inputEl.addEventListener('keydown', (e) => {
@@ -263,7 +271,7 @@
   window.addEventListener('message', (e) => {
     const msg = e.data;
     if (msg.type === 'showPrompt') {
-      createConversation(msg.requestId || Date.now().toString(), msg.prompt);
+      createConversation(msg.requestId || Date.now().toString(), msg.prompt, msg.context);
     } else if (msg.type === 'setPort') {
       currentPort = msg.port;
       $('portInfo').textContent = '\u7AEF\u53E3: ' + msg.port;

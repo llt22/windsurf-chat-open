@@ -121,7 +121,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     return this._timeoutMinutes;
   }
 
-  async showPrompt(prompt: string, requestId?: string) {
+  async showPrompt(prompt: string, requestId?: string, context?: string) {
     if (!this._view) {
       await vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
       const deadline = Date.now() + WEBVIEW_READY_TIMEOUT_MS;
@@ -164,7 +164,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
     if (this._view) {
       this._view.show?.(false);
-      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, startTimer: true });
+      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, startTimer: true });
     } else {
       console.error('[WindsurfChatOpen] Panel view not available after focus attempt');
       this._onUserResponse.fire({

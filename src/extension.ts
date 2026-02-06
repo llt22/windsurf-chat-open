@@ -108,7 +108,7 @@ class ExtensionStateManager {
     if (data.timeoutMinutes === undefined) {
       data.timeoutMinutes = this.panelProvider.getTimeoutMinutes();
     }
-    await this.panelProvider.showPrompt(data.prompt, data.requestId);
+    await this.panelProvider.showPrompt(data.prompt, data.requestId, data.context);
   }
 
 

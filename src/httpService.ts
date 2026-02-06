@@ -15,6 +15,7 @@ export interface RequestData {
     prompt: string;
     requestId: string;
     timeoutMinutes?: number;
+    context?: string;
 }
 
 interface ErrorResponse {
