@@ -18,7 +18,6 @@
 
   const conversations = new Map();
   let activeRequestId = null;
-  let tabCounter = 0;
   let currentPort = 0;
   let workspaceRoot = '';
   const MAX_IMAGE_COUNT = 10;
@@ -40,30 +39,45 @@
 
   // == Tab ==
   function createConversation(requestId, prompt) {
-    tabCounter++;
     conversations.set(requestId, {
-      requestId, prompt, tabIndex: tabCounter,
+      requestId, prompt,
       inputHtml: '', images: [], imagePreviewHtml: '',
       countdownStartTime: Date.now(),
       remainingSeconds: timeoutMinutes === 0 ? -1 : timeoutMinutes * 60,
       countdownInterval: null, displayInterval: null, isCountdownRunning: false
     });
-    addTab(requestId, tabCounter, prompt);
+    addTab(requestId, prompt);
     switchToConversation(requestId);
     startConvCountdown(requestId);
   }
 
-  function addTab(rid, idx, prompt) {
-    const short = (prompt || '').replace(/\s+/g, ' ').trim().substring(0, 20) || ('\u5BF9\u8BDD ' + idx);
+  function tabLabel(idx, prompt) {
+    const preview = (prompt || '').replace(/\s+/g, ' ').trim().substring(0, 12);
+    const suffix = preview ? (preview.length < (prompt || '').trim().length ? preview + '\u2026' : preview) : '\u5F85\u5904\u7406';
+    return '#' + idx + ' \u00B7 ' + suffix;
+  }
+
+  function addTab(rid, prompt) {
+    const idx = tabBarInner.children.length + 1;
     const t = document.createElement('div'); t.className = 'tab-item'; t.setAttribute('data-id', rid);
     const dot = document.createElement('span'); dot.className = 'tab-dot';
-    const lbl = document.createElement('span'); lbl.className = 'tab-label'; lbl.textContent = short; lbl.title = prompt || '';
+    const lbl = document.createElement('span'); lbl.className = 'tab-label'; lbl.textContent = tabLabel(idx, prompt); lbl.title = prompt || '';
     const cls = document.createElement('span'); cls.className = 'tab-close'; cls.textContent = '\u00D7';
     cls.onclick = (e) => { e.stopPropagation(); endConversation(rid); };
     t.appendChild(dot); t.appendChild(lbl); t.appendChild(cls);
     t.onclick = () => switchToConversation(rid);
     tabBarInner.appendChild(t);
     updateTabBarVisibility();
+  }
+
+  function renumberTabs() {
+    const tabs = tabBarInner.querySelectorAll('.tab-item');
+    tabs.forEach((t, i) => {
+      const rid = t.getAttribute('data-id');
+      const conv = conversations.get(rid);
+      const lbl = t.querySelector('.tab-label');
+      if (lbl && conv) { lbl.textContent = tabLabel(i + 1, conv.prompt); }
+    });
   }
 
   function updateTabBarVisibility() { tabBar.classList.toggle('show', conversations.size > 0); }
@@ -98,6 +112,7 @@
     if (c) { if (c.countdownInterval) clearInterval(c.countdownInterval); if (c.displayInterval) clearInterval(c.displayInterval); }
     conversations.delete(rid);
     const el = tabBarInner.querySelector('[data-id="' + rid + '"]'); if (el) el.remove();
+    renumberTabs();
     updateTabBarVisibility();
     if (activeRequestId === rid) {
       activeRequestId = null;
