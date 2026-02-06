@@ -1,7 +1,7 @@
 {
   "name": "windsurf-chat-open",
   "displayName": "WindsurfChatOpen",
-  "description": "开源版 WindsurfChat - 让 AI 停下来听你说话",
+  "description": "Give Windsurf AI a pause button — review, feedback, then continue.",
   "version": "1.8.1",
   "repository": {
     "type": "git",
