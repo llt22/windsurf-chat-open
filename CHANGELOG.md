@@ -5,6 +5,30 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.0] - 2026-02-06
+
+### 新增
+- **[多对话堆叠 UI]** Tab 切换改为卡片列表，每个对话独立卡片垂直排列，互不干扰
+- **[用户问题上下文]** CLI 支持 `--context` 参数，卡片同时显示用户问题和 AI 状态
+- **[Webview 重放]** 面板重建时自动恢复所有活跃对话卡片，不丢失等待中的请求
+- **[实时端口获取]** `setPortGetter` 回调解决面板端口与 port 文件不一致
+
+### 改进
+- **[提示词重写]** prompt 固定为「已回复 · 等待您的反馈」，强调先输出再调脚本，明确传最近消息
+- **[样式统一]** 用户消息与 AI 消息统一引用块样式，左边框颜色区分角色
+- **[倒计时精简]** 双 interval 合并为单个，减少不必要定时器
+- **[扩展描述优化]** 更新为英文专业描述
+
+### 修复
+- **[showPrompt 消息丢失]** 移除 `resolveWebviewView` 中过早的 promise resolve
+- **[端口显示不一致]** webview ready 时通过回调获取 httpService 实时端口
+- **[测试脚本路径]** `windsurf_chat_cli.js` 修正为 `windsurf_chat.cjs`
+- **[规则拼写]** `ttrigger` 修正为 `trigger`
+
+### 移除
+- Tab 栏 UI 及相关 HTML/CSS/JS
+- 卡片右上角关闭按钮（避免与底部结束按钮功能重复）
+
 ## [1.7.0] - 2025-01-23
 
 ### 新增
