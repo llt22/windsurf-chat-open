@@ -54,14 +54,14 @@
     // Context (user question)
     let contextEl = null;
     if (context) {
-      contextEl = document.createElement('div'); contextEl.className = 'conv-card-context';
+      contextEl = document.createElement('div'); contextEl.className = 'conv-card-msg conv-card-context';
       const maxLen = 200;
       contextEl.textContent = context.length > maxLen ? context.substring(0, maxLen) + '\u2026' : context;
       if (context.length > maxLen) contextEl.title = context;
     }
 
     // Prompt (AI summary)
-    const promptEl = document.createElement('div'); promptEl.className = 'conv-card-prompt'; promptEl.textContent = prompt;
+    const promptEl = document.createElement('div'); promptEl.className = 'conv-card-msg conv-card-prompt'; promptEl.textContent = prompt;
 
     // Input
     const inputEl = document.createElement('div'); inputEl.className = 'conv-card-input'; inputEl.contentEditable = 'true';

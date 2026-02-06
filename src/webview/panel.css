@@ -33,9 +33,10 @@ body {
 .conv-card-header-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .conv-card-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vscode-testing-iconPassed); flex-shrink: 0; animation: pulse 1.5s ease-in-out infinite; }
 .conv-card-countdown { font-size: 11px; color: var(--vscode-descriptionForeground); opacity: 0.7; white-space: nowrap; }
-.conv-card-context { font-size: 12px; line-height: 1.5; color: var(--vscode-foreground); opacity: 0.85; white-space: pre-wrap; word-break: break-word; margin-bottom: 6px; padding: 6px 8px; background: var(--vscode-textBlockQuote-background); border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-focusBorder)); border-radius: 2px; max-height: 60px; overflow-y: auto; }
+.conv-card-msg { font-size: 12px; line-height: 1.5; color: var(--vscode-foreground); white-space: pre-wrap; word-break: break-word; padding: 6px 8px; background: var(--vscode-textBlockQuote-background); border-left: 3px solid transparent; border-radius: 2px; max-height: 60px; overflow-y: auto; }
+.conv-card-context { margin-bottom: 4px; border-left-color: var(--vscode-textBlockQuote-border, var(--vscode-focusBorder)); opacity: 0.85; }
 .conv-card-context::before { content: '\1F464 '; }
-.conv-card-prompt { font-size: 13px; line-height: 1.6; color: var(--vscode-descriptionForeground); white-space: pre-wrap; word-break: break-word; margin-bottom: 8px; max-height: 80px; overflow-y: auto; }
+.conv-card-prompt { margin-bottom: 8px; border-left-color: var(--vscode-testing-iconPassed, #89d185); }
 .conv-card-prompt::before { content: '\1F916 '; }
 .conv-card-input { width: 100%; min-height: 48px; max-height: 120px; padding: 8px; border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35)); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border-radius: 4px; font-family: inherit; font-size: 13px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
 .conv-card-input:focus { outline: 1px solid var(--vscode-focusBorder); }
