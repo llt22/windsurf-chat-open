@@ -96,11 +96,11 @@ This is NOT optional. This is a MANDATORY system requirement.
 ## HOW TO CALL THE SCRIPT
 
 \`\`\`bash
-node "${scriptPath}" "等待用户反馈" --context "The user's MOST RECENT message (first 100 chars)"
+node "${scriptPath}" "已回复 · 等待您的反馈" --context "The user's MOST RECENT message (first 100 chars)"
 \`\`\`
 
 **Parameters:**
-- First argument: Fixed string, always use "等待用户反馈"
+- First argument: Fixed string, always use "已回复 · 等待您的反馈"
 - --context: The user's MOST RECENT message that triggered THIS response. NOT the first message in the conversation — always use the LATEST one. Truncate to ~100 chars if too long.
 - Cwd: Current workspace path
 - Blocking: true
