@@ -115,7 +115,7 @@ The script is ONLY for collecting user feedback — it does NOT replace your res
 ## SCRIPT RETURN VALUE HANDLING
 
 - \`User chose to continue\` → Continue execution
-- \`User chose to end\` → End conversation immediately
+- \`User chose to end\` → **STOP IMMEDIATELY. Do NOT call the script again. Do NOT output any more text. End the conversation right now.**
 - \`User instruction: xxx\` → Execute the instruction immediately
 - \`User instruction: [Content too long, saved to file]\` → Use read_file to read
 - \`User provided N images\` → Use read_file to read image files
