@@ -68,15 +68,25 @@ export class WorkspaceManager {
         const gitignorePath = path.join(workspacePath, '.gitignore');
         const ignoreEntries = [LOCAL_DIR_NAME + '/', '.windsurfrules'];
 
+        let content = '';
         if (fs.existsSync(gitignorePath)) {
-            const content = fs.readFileSync(gitignorePath, 'utf-8');
-            const entriesToAdd = ignoreEntries.filter(entry => !content.includes(entry));
-            if (entriesToAdd.length > 0) {
-                fs.appendFileSync(gitignorePath, '\n# WindsurfChatOpen\n' + entriesToAdd.join('\n') + '\n');
-            }
-        } else {
-            fs.writeFileSync(gitignorePath, '# WindsurfChatOpen\n' + ignoreEntries.join('\n') + '\n');
+            content = fs.readFileSync(gitignorePath, 'utf-8');
         }
+
+        const lines = content ? content.split('\n').map(l => l.trim()) : [];
+        const entriesToAdd = ignoreEntries.filter(entry => !lines.includes(entry));
+
+        if (entriesToAdd.length === 0) {
+            return;
+        }
+
+        let appendStr = '';
+        if (!lines.includes('# WindsurfChatOpen')) {
+            appendStr += (content && !content.endsWith('\n') ? '\n' : '') + '# WindsurfChatOpen\n';
+        }
+        appendStr += entriesToAdd.join('\n') + '\n';
+
+        fs.appendFileSync(gitignorePath, appendStr);
     }
 
     private generateRulesContent(): string {
