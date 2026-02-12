@@ -30,6 +30,9 @@ class ExtensionStateManager {
     );
     this.workspaceManager = new WorkspaceManager(context.extensionPath);
     this.panelProvider.setPortGetter(() => this.httpService.getPort());
+    this.panelProvider.setNeedReplyChangedCallback((needReply) => {
+      this.workspaceManager.updateRulesWithNeedReply(needReply);
+    });
   }
 
   public async activate() {
@@ -110,7 +113,7 @@ class ExtensionStateManager {
     if (data.timeoutMinutes === undefined) {
       data.timeoutMinutes = this.panelProvider.getTimeoutMinutes();
     }
-    await this.panelProvider.showPrompt(data.prompt, data.requestId, data.context);
+    await this.panelProvider.showPrompt(data.prompt, data.requestId, data.context, data.reply);
   }
 
 

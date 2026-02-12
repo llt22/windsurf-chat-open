@@ -11,6 +11,8 @@
   const convList = $('convList');
   const emptyState = $('emptyState');
 
+  const needReplyToggle = $('needReplyToggle');
+
   const conversations = new Map();
   let currentPort = 0;
   let workspaceRoot = '';
@@ -37,7 +39,7 @@
   function fmtCD(s) { return '\u23F1\uFE0F ' + Math.floor(s/60) + ':' + (s%60).toString().padStart(2,'0'); }
 
   // == Conversation Card ==
-  function createConversation(rid, prompt, context) {
+  function createConversation(rid, prompt, context, reply) {
     const images = [];
     const card = document.createElement('div');
     card.className = 'conv-card';
@@ -63,6 +65,15 @@
     // Prompt (AI summary)
     const promptEl = document.createElement('div'); promptEl.className = 'conv-card-msg conv-card-prompt'; promptEl.textContent = prompt;
 
+    // Reply (AI response content)
+    let replyEl = null;
+    if (reply) {
+      replyEl = document.createElement('div'); replyEl.className = 'conv-card-msg conv-card-reply';
+      const maxLen = 500;
+      replyEl.textContent = reply.length > maxLen ? reply.substring(0, maxLen) + '\u2026' : reply;
+      if (reply.length > maxLen) replyEl.title = reply;
+    }
+
     // Input
     const inputEl = document.createElement('div'); inputEl.className = 'conv-card-input'; inputEl.contentEditable = 'true';
 
@@ -80,7 +91,9 @@
 
     card.appendChild(header);
     if (contextEl) card.appendChild(contextEl);
-    card.appendChild(promptEl); card.appendChild(inputEl); card.appendChild(imgPreview); card.appendChild(actions);
+    card.appendChild(promptEl);
+    if (replyEl) card.appendChild(replyEl);
+    card.appendChild(inputEl); card.appendChild(imgPreview); card.appendChild(actions);
 
     // Keyboard
     inputEl.addEventListener('keydown', (e) => {
@@ -243,6 +256,10 @@
     }
   });
 
+  needReplyToggle.addEventListener('change', () => {
+    vscode.postMessage({ type: 'setNeedReply', needReply: needReplyToggle.checked });
+  });
+
   // == Modal ==
   $('modalClose').onclick = () => { imageModal.classList.remove('show'); };
   imageModal.onclick = (e) => { if (e.target === imageModal) imageModal.classList.remove('show'); };
@@ -268,7 +285,7 @@
   window.addEventListener('message', (e) => {
     const msg = e.data;
     if (msg.type === 'showPrompt') {
-      createConversation(msg.requestId || Date.now().toString(), msg.prompt, msg.context);
+      createConversation(msg.requestId || Date.now().toString(), msg.prompt, msg.context, msg.reply);
     } else if (msg.type === 'setPort') {
       currentPort = msg.port;
       $('portInfo').textContent = '\u7AEF\u53E3: ' + msg.port;
@@ -280,6 +297,8 @@
         timeoutInput.value = msg.timeoutMinutes;
         updateAllCountdowns();
       }
+    } else if (msg.type === 'setNeedReply') {
+      if (typeof msg.needReply === 'boolean') needReplyToggle.checked = msg.needReply;
     } else if (msg.type === 'dismissPrompt') {
       if (msg.requestId) removeConv(msg.requestId);
     } else if (msg.type === 'setWorkspaceRoot') {

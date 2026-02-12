@@ -4,6 +4,8 @@ import * as path from 'path';
 import { LOCAL_DIR_NAME, RULE_MARKER } from './constants';
 
 export class WorkspaceManager {
+    private _needReply: boolean = false;
+
     constructor(private readonly extensionPath: string) { }
 
     public setup() {
@@ -52,9 +54,18 @@ export class WorkspaceManager {
         vscode.window.showInformationMessage('WindsurfChatOpen workspace initialization complete');
     }
 
+    public updateRulesWithNeedReply(needReply: boolean) {
+        this._needReply = needReply;
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders?.length) return;
+        for (const folder of folders) {
+            this.updateWindsurfRules(folder.uri.fsPath);
+        }
+    }
+
     private updateWindsurfRules(workspacePath: string) {
         const rulesDest = path.join(workspacePath, '.windsurfrules');
-        const rulesContent = this.generateRulesContent();
+        const rulesContent = this.generateRulesContent(this._needReply);
 
         // Always delete and recreate to ensure latest rules
         if (fs.existsSync(rulesDest)) {
@@ -89,62 +100,40 @@ export class WorkspaceManager {
         fs.appendFileSync(gitignorePath, appendStr);
     }
 
-    private generateRulesContent(): string {
+    private generateRulesContent(needReply: boolean = false): string {
         const scriptPath = `./${LOCAL_DIR_NAME}/windsurf_chat.cjs`;
+        const replyParam = needReply ? ' --reply "YOUR_RESPONSE_CONTENT"' : '';
+        const replyParamDoc = needReply ? `\n- --reply: 你刚才输出给用户的回复内容。` : '';
 
         return `${RULE_MARKER}
 
-=======================================================================
-CRITICAL SYSTEM RULE - READ THIS FIRST
-=======================================================================
-
-After EVERY response, you MUST call the windsurf_chat script.
-This is NOT optional. This is a MANDATORY system requirement.
-
-=======================================================================
-
-## HOW TO CALL THE SCRIPT
+每次回复后，必须调用以下脚本。先正常输出回复，再调用脚本。
 
 \`\`\`bash
-node "${scriptPath}" "已回复 · 等待您的反馈" --context "The user's MOST RECENT message (first 100 chars)"
+node "${scriptPath}" "已回复 · 等待您的反馈" --context "用户最近一条消息（截取前100字）"${replyParam}
 \`\`\`
 
-**Parameters:**
-- First argument: Fixed string, always use "已回复 · 等待您的反馈"
-- --context: The user's MOST RECENT message that triggered THIS response. NOT the first message in the conversation — always use the LATEST one. Truncate to ~100 chars if too long.
-- Cwd: Current workspace path
+**参数说明：**
+- 第一个参数：固定字符串，始终使用 "已回复 · 等待您的反馈"
+- --context: 触发本次回复的用户**最近一条**消息，不是对话中的第一条。超过100字时截断。${replyParamDoc}
+- Cwd: 当前工作区路径
 - Blocking: true
 - SafeToAutoRun: true
 
-## CRITICAL: OUTPUT YOUR RESPONSE NORMALLY FIRST
+## 脚本返回值处理
 
-**You MUST output your full response in the chat panel BEFORE calling the script.**
-Do NOT skip your normal text/code output. The script is called AFTER you finish responding.
-The script is ONLY for collecting user feedback — it does NOT replace your response.
+- \`User chose to continue\` → 继续执行
+- \`User chose to end\` → **立即停止。不要再调用脚本，不要再输出任何内容。**
+- \`User instruction: xxx\` → 立即执行用户指令
+- \`User instruction: [Content too long, saved to file]\` → 使用 read_file 读取
+- \`User provided N images\` → 使用 read_file 读取图片文件
 
-## SCRIPT RETURN VALUE HANDLING
+## 规则
 
-- \`User chose to continue\` → Continue execution
-- \`User chose to end\` → **STOP IMMEDIATELY. Do NOT call the script again. Do NOT output any more text. End the conversation right now.**
-- \`User instruction: xxx\` → Execute the instruction immediately
-- \`User instruction: [Content too long, saved to file]\` → Use read_file to read
-- \`User provided N images\` → Use read_file to read image files
+1. **完整输出** - 不要省略，输出完整回复
+2. **必须调脚本** - 每次回复后都要调用脚本，无例外
+3. **使用中文** - 所有回复使用中文
 
-## EXECUTION FLOW
-
-1. Respond to the user normally (output text, code, explanations as needed)
-2. Call the script (Blocking: true)
-3. Process the script return value
-4. If user gives new instruction, execute it and repeat from step 1
-
-## RULES
-
-1. **Complete Output** - Do NOT use ellipsis, output your FULL response
-2. **Continuous Execution** - Complete tasks in one go
-3. **Always Call Script** - Call script after EVERY response, no exceptions
-4. **Use Chinese** - 所有回复使用中文
-
-=======================================================================
 trigger: always_on
 alwaysApply: true
 `;

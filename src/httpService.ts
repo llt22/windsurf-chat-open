@@ -16,6 +16,7 @@ export interface RequestData {
     requestId: string;
     timeoutMinutes?: number;
     context?: string;
+    reply?: string;
 }
 
 interface ErrorResponse {

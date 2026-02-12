@@ -23,12 +23,13 @@ export interface UserResponse {
 }
 
 interface WebviewMessage {
-  type: 'ready' | 'continue' | 'end' | 'submit' | 'setTimeout' | 'getWorkspaceRoot';
+  type: 'ready' | 'continue' | 'end' | 'submit' | 'setTimeout' | 'setNeedReply' | 'getWorkspaceRoot';
   text?: string;
   images?: string[];
   files?: Array<{ name: string; path: string; size: number }>;
   requestId?: string;
   timeoutMinutes?: number;
+  needReply?: boolean;
 }
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider {
@@ -40,15 +41,21 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _viewReadyPromise?: Promise<void>;
   private _isWebviewReady: boolean = false;
   private _timeoutMinutes: number = 240; // 默认4小时
+  private _needReply: boolean = false;
 
   private _getPortFn?: () => number;
-  private _activePrompts: Map<string, { prompt: string; context?: string }> = new Map();
+  private _onNeedReplyChanged?: (needReply: boolean) => void;
+  private _activePrompts: Map<string, { prompt: string; context?: string; reply?: string }> = new Map();
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _version: string
   ) {
     this._resetViewReadyPromise();
+  }
+
+  setNeedReplyChangedCallback(fn: (needReply: boolean) => void) {
+    this._onNeedReplyChanged = fn;
   }
 
   setPortGetter(fn: () => number) {
@@ -91,6 +98,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         }
         // 发送当前超时配置到前端
         this._view?.webview.postMessage({ type: 'setTimeoutMinutes', timeoutMinutes: this._timeoutMinutes });
+        this._view?.webview.postMessage({ type: 'setNeedReply', needReply: this._needReply });
         // 发送工作区根目录到前端
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
@@ -99,7 +107,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         }
         // 重放所有活跃的对话到 webview（恢复因 webview 重建而丢失的卡片）
         for (const [rid, data] of this._activePrompts.entries()) {
-          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context, startTimer: true });
+          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context, reply: data.reply, startTimer: true });
         }
         break;
       case 'continue':
@@ -120,6 +128,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
           console.log(`[WindsurfChatOpen] Timeout set to ${this._timeoutMinutes} minutes`);
         }
         break;
+      case 'setNeedReply':
+        if (typeof message.needReply === 'boolean') {
+          this._needReply = message.needReply;
+          this._onNeedReplyChanged?.(message.needReply);
+          console.log(`[WindsurfChatOpen] NeedReply set to ${this._needReply}`);
+        }
+        break;
       case 'getWorkspaceRoot':
         // 响应前端请求工作区路径
         const folders = vscode.workspace.workspaceFolders;
@@ -135,7 +150,11 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     return this._timeoutMinutes;
   }
 
-  async showPrompt(prompt: string, requestId?: string, context?: string) {
+  public getNeedReply(): boolean {
+    return this._needReply;
+  }
+
+  async showPrompt(prompt: string, requestId?: string, context?: string, reply?: string) {
     if (!this._view) {
       await vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
       const deadline = Date.now() + WEBVIEW_READY_TIMEOUT_MS;
@@ -179,9 +198,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     if (this._view) {
       this._view.show?.(false);
       if (requestId) {
-        this._activePrompts.set(requestId, { prompt, context });
+        this._activePrompts.set(requestId, { prompt, context, reply });
       }
-      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, startTimer: true });
+      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, reply, startTimer: true });
     } else {
       console.error('[WindsurfChatOpen] Panel view not available after focus attempt');
       this._onUserResponse.fire({
