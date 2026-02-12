@@ -46,13 +46,16 @@ export class HttpService {
     private triedPorts: Set<number> = new Set();
     private connectionCheckInterval?: NodeJS.Timeout;
     private getTimeoutMinutes: () => number;
+    private onTimeout?: (requestId: string) => void;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
         private readonly onRequest: (data: RequestData) => Promise<void>,
-        getTimeoutMinutes: () => number
+        getTimeoutMinutes: () => number,
+        onTimeout?: (requestId: string) => void
     ) {
         this.getTimeoutMinutes = getTimeoutMinutes;
+        this.onTimeout = onTimeout;
     }
 
     public getPort(): number {
@@ -320,6 +323,7 @@ export class HttpService {
                 pending.res.writeHead(200, { 'Content-Type': 'application/json' });
                 pending.res.end(JSON.stringify(this.createTimeoutResponse(elapsed, currentTimeoutMinutes)));
                 this.pendingRequests.delete(requestId);
+                this.onTimeout?.(requestId);
             }
             return;
         }

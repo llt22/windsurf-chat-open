@@ -25,7 +25,8 @@ class ExtensionStateManager {
     this.httpService = new HttpService(
       context, 
       (data) => this.handleRequest(data),
-      () => this.panelProvider.getTimeoutMinutes()
+      () => this.panelProvider.getTimeoutMinutes(),
+      (requestId) => this.panelProvider.dismissPrompt(requestId)
     );
     this.workspaceManager = new WorkspaceManager(context.extensionPath);
     this.panelProvider.setPortGetter(() => this.httpService.getPort());

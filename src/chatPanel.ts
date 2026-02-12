@@ -195,6 +195,11 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   }
 
 
+  dismissPrompt(requestId: string) {
+    this._activePrompts.delete(requestId);
+    this._view?.webview.postMessage({ type: 'dismissPrompt', requestId });
+  }
+
   setPort(port: number) {
     this._port = port;
     this._view?.webview.postMessage({ type: 'setPort', port });

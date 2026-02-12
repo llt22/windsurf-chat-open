@@ -280,6 +280,8 @@
         timeoutInput.value = msg.timeoutMinutes;
         updateAllCountdowns();
       }
+    } else if (msg.type === 'dismissPrompt') {
+      if (msg.requestId) removeConv(msg.requestId);
     } else if (msg.type === 'setWorkspaceRoot') {
       if (msg.workspaceRoot) { workspaceRoot = msg.workspaceRoot; }
     }
