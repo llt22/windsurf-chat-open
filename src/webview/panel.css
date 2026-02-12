@@ -18,6 +18,7 @@ body {
 .header-right { display: flex; align-items: center; gap: 8px; }
 .header-toggle { margin: 0; }
 .toggle-label { font-size: 11px; color: var(--vscode-descriptionForeground); cursor: default; user-select: none; }
+.toggle-desc { font-size: 10px; opacity: 0.6; }
 
 /* Empty State */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px 0; color: var(--vscode-descriptionForeground); font-size: 13px; opacity: 0.6; }
@@ -40,7 +41,7 @@ body {
 .conv-card-context::before { content: '\1F464 '; }
 .conv-card-prompt { margin-bottom: 4px; border-left-color: var(--vscode-testing-iconPassed, #89d185); }
 .conv-card-prompt::before { content: '\1F916 '; }
-.conv-card-reply { margin-bottom: 8px; border-left-color: var(--vscode-textLink-foreground, #3794ff); max-height: 120px; font-size: 11px; opacity: 0.85; }
+.conv-card-reply { margin-bottom: 8px; border-left-color: var(--vscode-textLink-foreground, #3794ff); max-height: 120px; opacity: 0.85; }
 .conv-card-reply::before { content: '\1F4AC '; }
 .conv-card-input { width: 100%; min-height: 48px; max-height: 120px; padding: 8px; border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35)); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border-radius: 4px; font-family: inherit; font-size: 13px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
 .conv-card-input:focus { outline: 1px solid var(--vscode-focusBorder); }

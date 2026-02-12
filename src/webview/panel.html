@@ -12,13 +12,13 @@
       <div class="header-left">
         <h1>WindsurfChat Open</h1>
         <span class="version">v{{VERSION}}</span>
-      </div>
-      <div class="header-right">
-        <label class="toggle-switch header-toggle" title="GPT 模式：开启后 AI 会将回复内容传入脚本">
+        <label class="toggle-switch header-toggle" title="开启后 AI 回复内容会显示在面板上，使用 GPT 等吞回复的模型时建议开启">
           <input type="checkbox" id="needReplyToggle" />
           <span class="toggle-slider"></span>
         </label>
-        <span class="toggle-label" id="toggleLabel">GPT</span>
+        <span class="toggle-label" id="toggleLabel">Reply <span class="toggle-desc">开启后 AI 回复内容会显示在面板上，使用 GPT 等吞回复的模型时建议开启</span></span>
+      </div>
+      <div class="header-right">
         <button class="settings-toggle" id="settingsToggle" title="设置">
           <span class="settings-toggle-icon">⚙️</span>
         </button>

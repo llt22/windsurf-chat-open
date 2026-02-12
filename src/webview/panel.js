@@ -91,8 +91,8 @@
 
     card.appendChild(header);
     if (contextEl) card.appendChild(contextEl);
-    card.appendChild(promptEl);
     if (replyEl) card.appendChild(replyEl);
+    card.appendChild(promptEl);
     card.appendChild(inputEl); card.appendChild(imgPreview); card.appendChild(actions);
 
     // Keyboard
