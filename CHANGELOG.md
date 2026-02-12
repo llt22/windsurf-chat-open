@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.4] - 2026-02-13
+
+### 新增
+- **[Reply 开关]** 面板 header 新增 Reply 开关，开启后 AI 回复内容会显示在面板卡片上，使用 GPT 等吞回复的模型时建议开启
+- **[--reply 参数]** CLI 脚本支持 `--reply` 参数，AI 回复内容作为独立字段传入，面板上单独显示（💬 蓝色左边框）
+- **[动态规则生成]** Reply 开关变化时自动重新生成 `.windsurfrules`，开启时包含 `--reply` 参数说明，关闭时不包含
+
+### 改进
+- **[规则精简]** `.windsurfrules` 模板精简为中文，移除冗余约束（RULE #1 大标题块、Hard requirement、EXECUTION FLOW 重复说明等）
+- **[Reply 独立显示]** reply 内容不再拼接到 prompt，面板上独立展示，不截断
+
 ## [2.0.2] - 2026-02-13
 
 ### 修复
