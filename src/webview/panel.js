@@ -4,21 +4,16 @@
   const $ = (id) => document.getElementById(id);
   const imageModal = $('imageModal');
   const modalImage = $('modalImage');
-  const timeoutInput = $('timeoutInput');
   const connectionStatus = $('connectionStatus');
-  const settingsToggle = $('settingsToggle');
-  const configBar = $('configBar');
   const convList = $('convList');
   const emptyState = $('emptyState');
 
-  const needReplyToggle = $('needReplyToggle');
-
   const conversations = new Map();
-  let currentPort = 0;
+  let currentPanelId = '';
+  let currentToolName = '';
   let workspaceRoot = '';
   const MAX_IMAGE_COUNT = 10;
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-  let timeoutMinutes = 240;
   let fileChipIdCounter = 0;
 
   const TEXT_EXTS = [
@@ -36,8 +31,6 @@
     emptyState.classList.toggle('hidden', conversations.size > 0);
   }
 
-  function fmtCD(s) { return '\u23F1\uFE0F ' + Math.floor(s/60) + ':' + (s%60).toString().padStart(2,'0'); }
-
   // == Conversation Card ==
   function createConversation(rid, prompt, context, reply) {
     const images = [];
@@ -45,12 +38,11 @@
     card.className = 'conv-card';
     card.setAttribute('data-id', rid);
 
-    // Header: dot + countdown
+    // Header: dot
     const header = document.createElement('div'); header.className = 'conv-card-header';
     const hLeft = document.createElement('div'); hLeft.className = 'conv-card-header-left';
     const dot = document.createElement('span'); dot.className = 'conv-card-dot';
-    const cdEl = document.createElement('span'); cdEl.className = 'conv-card-countdown';
-    hLeft.appendChild(dot); hLeft.appendChild(cdEl);
+    hLeft.appendChild(dot);
     header.appendChild(hLeft);
 
     // Context (user question)
@@ -117,22 +109,17 @@
     // Store conv state
     const conv = {
       rid, images,
-      countdownStartTime: Date.now(),
-      remainingSeconds: timeoutMinutes === 0 ? -1 : timeoutMinutes * 60,
-      countdownInterval: null, isCountdownRunning: false,
-      dom: { card, inputEl, imgPreview, countdown: cdEl }
+      dom: { card, inputEl, imgPreview }
     };
     conversations.set(rid, conv);
     convList.prepend(card);
     updateEmptyState();
     inputEl.focus();
-    startCountdown(rid);
   }
 
   function removeConv(rid) {
     const c = conversations.get(rid);
     if (c) {
-      if (c.countdownInterval) clearInterval(c.countdownInterval);
       if (c.dom.card.parentNode) c.dom.card.remove();
     }
     conversations.delete(rid);
@@ -162,20 +149,6 @@
       chip.parentNode.replaceChild(document.createTextNode(p || chip.textContent), chip);
     });
     return cl.textContent.trim();
-  }
-
-  // == Countdown ==
-  function startCountdown(rid) {
-    const c = conversations.get(rid); if (!c) return;
-    if (timeoutMinutes === 0) { c.remainingSeconds = -1; c.isCountdownRunning = false; c.dom.countdown.textContent = '\u23F1\uFE0F \u4E0D\u9650\u5236'; return; }
-    c.remainingSeconds = timeoutMinutes * 60; c.countdownStartTime = Date.now(); c.isCountdownRunning = true;
-    c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
-    if (c.countdownInterval) clearInterval(c.countdownInterval);
-    c.countdownInterval = setInterval(() => {
-      c.remainingSeconds--;
-      if (c.remainingSeconds <= 0) { clearInterval(c.countdownInterval); c.countdownInterval = null; c.isCountdownRunning = false; c.dom.countdown.textContent = ''; }
-      else c.dom.countdown.textContent = fmtCD(c.remainingSeconds);
-    }, 1000);
   }
 
   // == Image ==
@@ -240,71 +213,55 @@
     inputEl.focus();
   }
 
-  // == Settings ==
-  settingsToggle.addEventListener('click', () => { settingsToggle.classList.toggle('expanded'); configBar.classList.toggle('show'); });
-  document.querySelectorAll('.timeout-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => { timeoutInput.value = parseInt(btn.getAttribute('data-minutes')); });
-  });
-  $('confirmConfigBtn').addEventListener('click', () => {
-    const v = parseInt(timeoutInput.value);
-    if (!isNaN(v) && v >= 0) {
-      timeoutMinutes = v;
-      vscode.postMessage({ type: 'setTimeout', timeoutMinutes: v });
-      updateAllCountdowns();
-      settingsToggle.classList.remove('expanded');
-      configBar.classList.remove('show');
-    }
-  });
-
-  needReplyToggle.addEventListener('change', () => {
-    vscode.postMessage({ type: 'setNeedReply', needReply: needReplyToggle.checked });
-  });
-
   // == Modal ==
   $('modalClose').onclick = () => { imageModal.classList.remove('show'); };
   imageModal.onclick = (e) => { if (e.target === imageModal) imageModal.classList.remove('show'); };
   function showModal(src) { modalImage.src = src; imageModal.classList.add('show'); }
-
-  function updateAllCountdowns() {
-    for (const [, c] of conversations.entries()) {
-      if (!c.isCountdownRunning) continue;
-      const nr = timeoutMinutes * 60 - Math.floor((Date.now() - c.countdownStartTime) / 1000);
-      if (nr <= 0) {
-        c.remainingSeconds = 0;
-        if (c.countdownInterval) clearInterval(c.countdownInterval);
-        c.countdownInterval = null; c.isCountdownRunning = false;
-        if (c.dom) c.dom.countdown.textContent = '';
-      } else {
-        c.remainingSeconds = nr;
-        if (c.dom) c.dom.countdown.textContent = fmtCD(nr);
-      }
-    }
-  }
 
   // == Message Handler ==
   window.addEventListener('message', (e) => {
     const msg = e.data;
     if (msg.type === 'showPrompt') {
       createConversation(msg.requestId || Date.now().toString(), msg.prompt, msg.context, msg.reply);
-    } else if (msg.type === 'setPort') {
-      currentPort = msg.port;
-      $('portInfo').textContent = '\u7AEF\u53E3: ' + msg.port;
+    } else if (msg.type === 'setPanelId') {
+      currentPanelId = msg.panelId;
       connectionStatus.classList.remove('disconnected');
-      connectionStatus.title = '\u670D\u52A1\u8FD0\u884C\u4E2D';
-    } else if (msg.type === 'setTimeoutMinutes') {
-      if (typeof msg.timeoutMinutes === 'number' && msg.timeoutMinutes >= 0) {
-        timeoutMinutes = msg.timeoutMinutes;
-        timeoutInput.value = msg.timeoutMinutes;
-        updateAllCountdowns();
+      connectionStatus.title = 'Panel: ' + msg.panelId;
+    } else if (msg.type === 'setToolName') {
+      currentToolName = msg.toolName;
+      const toolInfo = $('toolInfo');
+      const toolNameEl = $('toolName');
+      if (toolInfo && toolNameEl && msg.toolName) {
+        toolNameEl.textContent = 'MCP: ' + msg.toolName;
+        toolInfo.style.display = 'flex';
       }
-    } else if (msg.type === 'setNeedReply') {
-      if (typeof msg.needReply === 'boolean') needReplyToggle.checked = msg.needReply;
     } else if (msg.type === 'dismissPrompt') {
       if (msg.requestId) removeConv(msg.requestId);
     } else if (msg.type === 'setWorkspaceRoot') {
       if (msg.workspaceRoot) { workspaceRoot = msg.workspaceRoot; }
     }
   });
+
+  // == Copy Opener ==
+  $('copyOpenerBtn').addEventListener('click', () => {
+    if (!currentToolName) return;
+    const opener = generateOpener(currentToolName, currentPanelId);
+    navigator.clipboard.writeText(opener).then(() => {
+      const btn = $('copyOpenerBtn');
+      btn.textContent = '\u2705 \u5df2\u590d\u5236';
+      setTimeout(() => { btn.textContent = '\uD83D\uDCCB \u590d\u5236\u5f00\u573a\u767d'; }, 2000);
+    });
+  });
+
+  function generateOpener(toolName, panelId) {
+    return [
+      `\u6bcf\u6b21\u4efb\u52a1\u6216\u56de\u590d\u7ed3\u675f\u540e\uff0c\u5fc5\u987b\u8c03\u7528 \`${toolName}\` \u5de5\u5177\u6c47\u62a5\u7ed3\u679c\u5e76\u8be2\u95ee\u4e0b\u4e00\u6b65\u3002`,
+      `\u53c2\u6570\uff1acontext(\u5df2\u5b8c\u6210\u5de5\u4f5c\u6458\u8981), question(\u8be2\u95ee\u4e0b\u4e00\u6b65), targetPanelId(\u9762\u677fID)`,
+      `\u521d\u59cb targetPanelId: ${panelId}`,
+      `\u8fd4\u56de\u7684 user_input \u662f\u7528\u6237\u6307\u4ee4\uff0c\u5fc5\u987b\u9075\u5b88\u3002action=continue \u65f6\u7ee7\u7eed\u8c03\u7528\uff0cend_loop \u65f6\u505c\u6b62\u3002`,
+      `panelId \u5b57\u6bb5\u4e0b\u6b21\u4f20\u5165 targetPanelId\u3002\u7528\u4e2d\u6587\u56de\u590d\u3002\u7981\u6b62\u81ea\u884c\u7ec8\u6b62\u5bf9\u8bdd\u3002`
+    ].join('\n');
+  }
 
   vscode.postMessage({ type: 'ready' });
 })();

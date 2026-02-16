@@ -1,172 +1,145 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import * as crypto from 'crypto';
 import { ChatPanelProvider } from './chatPanel';
-import { HttpService, RequestData } from './httpService';
-import { WorkspaceManager } from './workspaceManager';
+import { McpManager } from './mcpManager';
+import { WsClient } from './wsClient';
 import {
   COMMANDS,
   VIEWS,
-  TEMP_FILE_MAX_AGE_MS,
-  TEMP_FILE_CLEANUP_INTERVAL_MS,
-  HTTP_SERVER_START_DELAY_MS
+  STARTUP_DELAY_MS
 } from './constants';
 
+interface WaitRequest {
+  requestId: string;
+  context: string;
+  question: string;
+  targetPanelId: string;
+  choices?: string[];
+}
+
 class ExtensionStateManager {
-  private httpService: HttpService;
-  private workspaceManager: WorkspaceManager;
+  private mcpManager: McpManager;
+  private wsClient: WsClient | null = null;
   private panelProvider: ChatPanelProvider;
-  private cleanupTimer?: NodeJS.Timeout;
+  private panelId: string;
 
   constructor(private context: vscode.ExtensionContext) {
     const version = context.extension.packageJSON.version || '0.0.0';
+    this.panelId = 'panel-' + crypto.randomBytes(16).toString('hex');
     this.panelProvider = new ChatPanelProvider(context.extensionUri, version);
-    this.httpService = new HttpService(
-      context, 
-      (data) => this.handleRequest(data),
-      () => this.panelProvider.getTimeoutMinutes(),
-      (requestId) => this.panelProvider.dismissPrompt(requestId)
-    );
-    this.workspaceManager = new WorkspaceManager(context.extensionPath);
-    this.panelProvider.setPortGetter(() => this.httpService.getPort());
-    this.panelProvider.setNeedReplyChangedCallback((needReply) => {
-      this.workspaceManager.updateRulesWithNeedReply(needReply);
-    });
+    this.mcpManager = new McpManager(context.extensionPath);
   }
 
   public async activate() {
-    console.log('[WindsurfChatOpen] Activating extension...');
+    console.log('[DevFlow] Activating extension...');
 
-    this.cleanOldTempFiles();
-    this.startPeriodicCleanup();
-
+    // 注册 Webview 面板
     this.context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(VIEWS.PANEL, this.panelProvider, {
         webviewOptions: { retainContextWhenHidden: true }
       })
     );
 
+    // 面板用户响应 → 转发给 Central Server
     this.panelProvider.onUserResponse((response) => {
-      this.httpService.sendResponse(response, response.requestId);
+      if (this.wsClient && response.requestId) {
+        this.wsClient.send({
+          type: 'user_response',
+          requestId: response.requestId,
+          content: response.text,
+          panelId: this.panelId,
+          action: response.action,
+        });
+      }
     });
 
-    // Register commands
+    // 注册命令
     this.context.subscriptions.push(
       vscode.commands.registerCommand(COMMANDS.FOCUS, () => {
         vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
-      }),
-      vscode.commands.registerCommand(COMMANDS.SETUP, () => {
-        this.workspaceManager.setup();
       })
     );
 
-    // Listen for workspace folder changes
-    this.context.subscriptions.push(
-      vscode.workspace.onDidChangeWorkspaceFolders(() => {
-        console.log('[WindsurfChatOpen] Workspace folders changed, re-running setup...');
-        if (vscode.workspace.workspaceFolders?.length) {
-          this.workspaceManager.setup();
-          // Re-write port files for new folders
-          if (this.httpService.getPort() > 0) {
-            this.httpService.writePortFiles(this.httpService.getPort());
-          }
-        }
-      })
-    );
-
-    // Status bar item
+    // 状态栏
     this.createStatusBarItem();
 
-    // Start HTTP server
+    // 延迟初始化 MCP 和 WebSocket
     setTimeout(async () => {
       try {
-        const port = await this.httpService.start();
-        if (port > 0) {
-          console.log(`[WindsurfChatOpen] HTTP Server started on port ${port}`);
-          this.panelProvider.setPort(port);
+        // 初始化 MCP（启动 central server + 写 mcp_config.json）
+        const toolName = await this.mcpManager.initialize(this.panelId);
+        console.log(`[DevFlow] Tool name: ${toolName}`);
 
-          if (vscode.workspace.workspaceFolders?.length) {
-            this.workspaceManager.setup();
-          }
-        }
+        // 通知面板当前面板ID和工具名
+        this.panelProvider.setPanelId(this.panelId);
+        this.panelProvider.setToolName(toolName);
+
+        // 连接 Central Server
+        this.wsClient = new WsClient(this.panelId, toolName);
+        this.wsClient.setMessageHandler((msg) => this.handleWsMessage(msg));
+
+        await this.wsClient.connect().catch((err: any) => {
+          console.error('[DevFlow] Initial WS connection failed:', err.message);
+        });
+
       } catch (err) {
-        vscode.window.showErrorMessage(`WindsurfChatOpen failed to start: ${err}`);
+        console.error('[DevFlow] Initialization failed:', err);
       }
-    }, HTTP_SERVER_START_DELAY_MS);
+    }, STARTUP_DELAY_MS);
 
-    console.log('[WindsurfChatOpen] Extension activated');
+    console.log('[DevFlow] Extension activated');
   }
 
   private createStatusBarItem() {
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.text = '$(comment-discussion) windsurf-chat-open';
-    statusBarItem.tooltip = 'WindsurfChat Open - Click to focus panel';
+    statusBarItem.text = '$(comment-discussion) DevFlow';
+    statusBarItem.tooltip = 'DevFlow - Click to focus panel';
     statusBarItem.command = COMMANDS.FOCUS;
     statusBarItem.show();
     this.context.subscriptions.push(statusBarItem);
   }
 
-  private async handleRequest(data: RequestData) {
-    console.log(`[WindsurfChatOpen] Received request: ${data.requestId}`);
-    // 如果请求中没有超时配置，使用面板的配置
-    if (data.timeoutMinutes === undefined) {
-      data.timeoutMinutes = this.panelProvider.getTimeoutMinutes();
+  /**
+   * 处理来自 Central Server 的 WebSocket 消息
+   */
+  private async handleWsMessage(msg: any) {
+    switch (msg.type) {
+      case 'wait_request':
+        await this.handleWaitRequest(msg as WaitRequest);
+        break;
+
+      case 'server_info':
+        if (msg.toolName) {
+          console.log(`[DevFlow] Server tool name: ${msg.toolName}`);
+        }
+        break;
+
+      case 'tool_name_update':
+        if (msg.toolName) {
+          this.mcpManager.updateToolName(msg.toolName);
+          this.wsClient?.updateToolName(msg.toolName);
+          this.panelProvider.setToolName(msg.toolName);
+        }
+        break;
+
+      default:
+        break;
     }
-    await this.panelProvider.showPrompt(data.prompt, data.requestId, data.context, data.reply);
   }
 
-
-  private startPeriodicCleanup() {
-    this.cleanupTimer = setInterval(() => {
-      this.cleanOldTempFiles();
-    }, TEMP_FILE_CLEANUP_INTERVAL_MS);
-
-    this.context.subscriptions.push({
-      dispose: () => {
-        if (this.cleanupTimer) {
-          clearInterval(this.cleanupTimer);
-        }
-      }
-    });
-  }
-
-  private cleanOldTempFiles() {
-    const tempDir = os.tmpdir();
-    const now = Date.now();
-    const prefixes = ['wsc_img_', 'windsurf_chat_instruction_'];
-
-    try {
-      const files = fs.readdirSync(tempDir);
-      let count = 0;
-      for (const file of files) {
-        if (prefixes.some(p => file.startsWith(p))) {
-          const filePath = path.join(tempDir, file);
-          try {
-            const stat = fs.statSync(filePath);
-            if (now - stat.mtimeMs > TEMP_FILE_MAX_AGE_MS) {
-              fs.unlinkSync(filePath);
-              count++;
-            }
-          } catch (e) {
-            // 忽略单个文件的错误，继续处理其他文件
-          }
-        }
-      }
-      if (count > 0) {
-        console.log(`[WindsurfChatOpen] Cleaned ${count} old temp files`);
-      }
-    } catch (e) {
-      console.error(`[WindsurfChatOpen] Failed to clean temp files: ${e}`);
-    }
+  /**
+   * 处理 MCP 工具调用请求（来自 AI 的等待用户输入请求）
+   */
+  private async handleWaitRequest(req: WaitRequest) {
+    console.log(`[DevFlow] Wait request: ${req.requestId}`);
+    const prompt = req.question || '下一步想做什么？';
+    await this.panelProvider.showPrompt(prompt, req.requestId, req.context);
   }
 
   public deactivate() {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
-    }
-    this.httpService.dispose();
-    console.log('[WindsurfChatOpen] Extension deactivated');
+    this.wsClient?.dispose();
+    this.mcpManager.dispose();
+    console.log('[DevFlow] Extension deactivated');
   }
 }
 
@@ -175,7 +148,7 @@ let stateManager: ExtensionStateManager | null = null;
 export function activate(context: vscode.ExtensionContext) {
   stateManager = new ExtensionStateManager(context);
   stateManager.activate().catch(err => {
-    console.error('[WindsurfChatOpen] Activation error:', err);
+    console.error('[DevFlow] Activation error:', err);
   });
 }
 

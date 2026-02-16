@@ -10,5 +10,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "dist", "central-server", "mcp-server"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

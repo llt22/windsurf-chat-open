@@ -23,29 +23,23 @@ export interface UserResponse {
 }
 
 interface WebviewMessage {
-  type: 'ready' | 'continue' | 'end' | 'submit' | 'setTimeout' | 'setNeedReply' | 'getWorkspaceRoot';
+  type: 'ready' | 'continue' | 'end' | 'submit' | 'getWorkspaceRoot';
   text?: string;
   images?: string[];
   files?: Array<{ name: string; path: string; size: number }>;
   requestId?: string;
-  timeoutMinutes?: number;
-  needReply?: boolean;
 }
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _onUserResponse = new vscode.EventEmitter<UserResponse>();
   public onUserResponse = this._onUserResponse.event;
-  private _port: number = 0;
   private _viewReadyResolve?: () => void;
   private _viewReadyPromise?: Promise<void>;
   private _isWebviewReady: boolean = false;
-  private _timeoutMinutes: number = 240; // 默认4小时
-  private _needReply: boolean = false;
-
-  private _getPortFn?: () => number;
-  private _onNeedReplyChanged?: (needReply: boolean) => void;
-  private _activePrompts: Map<string, { prompt: string; context?: string; reply?: string }> = new Map();
+  private _panelId: string = '';
+  private _toolName: string = '';
+  private _activePrompts: Map<string, { prompt: string; context?: string }> = new Map();
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -54,12 +48,14 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     this._resetViewReadyPromise();
   }
 
-  setNeedReplyChangedCallback(fn: (needReply: boolean) => void) {
-    this._onNeedReplyChanged = fn;
+  setPanelId(panelId: string) {
+    this._panelId = panelId;
+    this._view?.webview.postMessage({ type: 'setPanelId', panelId });
   }
 
-  setPortGetter(fn: () => number) {
-    this._getPortFn = fn;
+  setToolName(toolName: string) {
+    this._toolName = toolName;
+    this._view?.webview.postMessage({ type: 'setToolName', toolName });
   }
 
   private _resetViewReadyPromise() {
@@ -70,7 +66,6 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
-    // 重建 webview 时重置 ready 状态，等待新的 'ready' 消息
     this._resetViewReadyPromise();
     this._view = webviewView;
 
@@ -90,24 +85,21 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       case 'ready':
         this._isWebviewReady = true;
         this._viewReadyResolve?.();
-        // 发送当前端口到前端
-        const livePort = this._getPortFn ? this._getPortFn() : this._port;
-        if (livePort > 0) {
-          this._port = livePort;
-          this._view?.webview.postMessage({ type: 'setPort', port: livePort });
+        // 发送面板 ID 和工具名
+        if (this._panelId) {
+          this._view?.webview.postMessage({ type: 'setPanelId', panelId: this._panelId });
         }
-        // 发送当前超时配置到前端
-        this._view?.webview.postMessage({ type: 'setTimeoutMinutes', timeoutMinutes: this._timeoutMinutes });
-        this._view?.webview.postMessage({ type: 'setNeedReply', needReply: this._needReply });
-        // 发送工作区根目录到前端
+        if (this._toolName) {
+          this._view?.webview.postMessage({ type: 'setToolName', toolName: this._toolName });
+        }
+        // 发送工作区根目录
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
-          const workspaceRoot = workspaceFolders[0].uri.fsPath;
-          this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot });
+          this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot: workspaceFolders[0].uri.fsPath });
         }
-        // 重放所有活跃的对话到 webview（恢复因 webview 重建而丢失的卡片）
+        // 重放活跃的对话卡片
         for (const [rid, data] of this._activePrompts.entries()) {
-          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context, reply: data.reply, startTimer: true });
+          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context, startTimer: true });
         }
         break;
       case 'continue':
@@ -122,39 +114,16 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         if (requestId) this._activePrompts.delete(requestId);
         this._handleSubmit(message.text || '', message.images || [], message.files, requestId);
         break;
-      case 'setTimeout':
-        if (typeof message.timeoutMinutes === 'number' && message.timeoutMinutes >= 0) {
-          this._timeoutMinutes = message.timeoutMinutes;
-          console.log(`[WindsurfChatOpen] Timeout set to ${this._timeoutMinutes} minutes`);
-        }
-        break;
-      case 'setNeedReply':
-        if (typeof message.needReply === 'boolean') {
-          this._needReply = message.needReply;
-          this._onNeedReplyChanged?.(message.needReply);
-          console.log(`[WindsurfChatOpen] NeedReply set to ${this._needReply}`);
-        }
-        break;
       case 'getWorkspaceRoot':
-        // 响应前端请求工作区路径
         const folders = vscode.workspace.workspaceFolders;
         if (folders && folders.length > 0) {
-          const root = folders[0].uri.fsPath;
-          this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot: root });
+          this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot: folders[0].uri.fsPath });
         }
         break;
     }
   }
 
-  public getTimeoutMinutes(): number {
-    return this._timeoutMinutes;
-  }
-
-  public getNeedReply(): boolean {
-    return this._needReply;
-  }
-
-  async showPrompt(prompt: string, requestId?: string, context?: string, reply?: string) {
+  async showPrompt(prompt: string, requestId?: string, context?: string) {
     if (!this._view) {
       await vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
       const deadline = Date.now() + WEBVIEW_READY_TIMEOUT_MS;
@@ -175,16 +144,14 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const readyPromise = this._viewReadyPromise;
       await Promise.race([
-        readyPromise,
+        this._viewReadyPromise,
         new Promise<void>((_, reject) =>
           setTimeout(() => reject(new Error('Webview ready timeout')), WEBVIEW_READY_TIMEOUT_MS)
         )
       ]);
     } catch (e) {
-      console.error(`[WindsurfChatOpen] ${e}`);
-      // Webview not ready, fire error response
+      console.error(`[DevFlow] ${e}`);
       this._onUserResponse.fire({
         action: 'error',
         text: '',
@@ -198,11 +165,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     if (this._view) {
       this._view.show?.(false);
       if (requestId) {
-        this._activePrompts.set(requestId, { prompt, context, reply });
+        this._activePrompts.set(requestId, { prompt, context });
       }
-      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, reply, startTimer: true });
+      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, startTimer: true });
     } else {
-      console.error('[WindsurfChatOpen] Panel view not available after focus attempt');
       this._onUserResponse.fire({
         action: 'error',
         text: '',
@@ -213,26 +179,19 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     }
   }
 
-
   dismissPrompt(requestId: string) {
     this._activePrompts.delete(requestId);
     this._view?.webview.postMessage({ type: 'dismissPrompt', requestId });
   }
 
-  setPort(port: number) {
-    this._port = port;
-    this._view?.webview.postMessage({ type: 'setPort', port });
-  }
-
   private _handleSubmit(text: string, images: string[], files?: Array<{ name: string; path: string; size: number }>, requestId?: string) {
-    // 验证图片数量
     if (images.length > MAX_IMAGE_COUNT) {
       this._onUserResponse.fire({
         action: 'error',
         text: '',
         images: [],
         requestId,
-        error: ERROR_MESSAGES.TOO_MANY_IMAGES
+        error: '图片数量超过限制'
       });
       return;
     }
@@ -240,10 +199,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     const tempDir = os.tmpdir();
     const uniqueId = crypto.randomBytes(4).toString('hex');
     const savedImages: string[] = [];
-    const failedImages: number[] = [];
-    const oversizedImages: number[] = [];
 
-    // 处理文件路径
     let filesText = '';
     if (files && files.length > 0) {
       filesText = '\n\n用户拖拽了以下文件，请使用 read_file 工具读取：\n';
@@ -255,62 +211,45 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     images.forEach((img, i) => {
       try {
         const base64Data = img.replace(/^data:image\/\w+;base64,/, '');
-
-        // 验证图片大小
         const imageSize = Buffer.byteLength(base64Data, 'base64');
-        if (imageSize > MAX_IMAGE_SIZE) {
-          oversizedImages.push(i + 1);
-          return;
-        }
+        if (imageSize > MAX_IMAGE_SIZE) return;
 
-        const imgPath = path.join(tempDir, `wsc_img_${uniqueId}_${i}.png`);
+        const imgPath = path.join(tempDir, `df_img_${uniqueId}_${i}.png`);
         fs.writeFileSync(imgPath, base64Data, 'base64');
         savedImages.push(imgPath);
       } catch (e) {
-        console.error(`[WindsurfChatOpen] ${ERROR_MESSAGES.IMAGE_SAVE_FAILED} ${i}: ${e}`);
-        failedImages.push(i + 1);
+        console.error(`[DevFlow] Image save failed ${i}: ${e}`);
       }
     });
 
-    let warningPrefix = '';
-    if (oversizedImages.length > 0) {
-      warningPrefix += `[WindsurfChatOpen 警告] 第 ${oversizedImages.join(', ')} 张图片超过大小限制（5MB），已跳过\n\n`;
-    }
-    if (failedImages.length > 0) {
-      warningPrefix += `[WindsurfChatOpen 警告] 第 ${failedImages.join(', ')} 张图片保存失败\n\n`;
-    }
-
     if (text.length > LONG_TEXT_THRESHOLD) {
       try {
-        const txtPath = path.join(tempDir, `windsurf_chat_instruction_${uniqueId}.txt`);
+        const txtPath = path.join(tempDir, `df_instruction_${uniqueId}.txt`);
         fs.writeFileSync(txtPath, text, 'utf-8');
         this._onUserResponse.fire({
           action: 'instruction',
-          text: `${warningPrefix}[Content too long, saved to file]\n\nUser provided full instruction, please use read_file tool to read the following file:\n- ${txtPath}${filesText}`,
+          text: `[Content too long, saved to file]\n\nUser provided full instruction, please use read_file tool to read the following file:\n- ${txtPath}${filesText}`,
           images: savedImages,
-          files: files,
-          requestId: requestId
+          files,
+          requestId
         });
       } catch (e) {
-        console.error(`[WindsurfChatOpen] Failed to save text file: ${e}`);
         this._onUserResponse.fire({
           action: 'error',
           text: '',
           images: [],
           requestId,
-          error: '保存文本文件失败，请重试'
+          error: '保存文本文件失败'
         });
       }
     } else {
       this._onUserResponse.fire({
         action: 'instruction',
-        text: warningPrefix + text + filesText,
+        text: text + filesText,
         images: savedImages,
-        files: files,
-        requestId: requestId
+        files,
+        requestId
       });
     }
   }
-
 }
-

@@ -1,10 +1,13 @@
 node_modules/
 dist/
+bundled/
 *.vsix
 .vscode-test/
 .idea/
-# WindsurfChatOpen
-.windsurfchatopen/
-.windsurfrules
 .ace-tool/
+.cunzhi-memory/
 releases/
+central-server/node_modules/
+central-server/dist/
+mcp-server/node_modules/
+mcp-server/dist/

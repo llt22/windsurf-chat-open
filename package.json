@@ -1,15 +1,15 @@
 {
-  "name": "windsurf-chat-open",
-  "displayName": "WindsurfChatOpen",
-  "description": "Give Windsurf AI a pause button — review, feedback, then continue.",
-  "version": "2.0.4",
+  "name": "devflow-panel",
+  "displayName": "DevFlow Panel",
+  "description": "Developer workflow panel for VSCode",
+  "version": "3.0.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nicepkg/windsurf-chat-open"
+    "url": "https://github.com/nicepkg/devflow"
   },
-  "publisher": "windsurf-chat-open",
+  "publisher": "nicepkg",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
@@ -22,37 +22,34 @@
     "viewsContainers": {
       "panel": [
         {
-          "id": "windsurfChatOpenPanel",
-          "title": "WindsurfChatOpen",
+          "id": "devflowPanel",
+          "title": "DevFlow",
           "icon": "$(comment-discussion)"
         }
       ]
     },
     "views": {
-      "windsurfChatOpenPanel": [
+      "devflowPanel": [
         {
           "type": "webview",
-          "id": "windsurfChatOpen.panel",
-          "name": "对话面板",
-          "icon": "$(comment-discussion)"
+          "id": "devflow.panel",
+          "name": "DevFlow",
+          "icon": "$(comment-discussion)",
+          "retainContextWhenHidden": true
         }
       ]
     },
     "commands": [
       {
-        "command": "windsurfChatOpen.focus",
-        "title": "WindsurfChatOpen: 聚焦面板"
-      },
-      {
-        "command": "windsurfChatOpen.setup",
-        "title": "WindsurfChatOpen: 初始化工作区"
+        "command": "devflow.focus",
+        "title": "DevFlow: Focus Panel"
       }
     ],
     "keybindings": [
       {
-        "command": "windsurfChatOpen.focus",
-        "key": "ctrl+shift+w",
-        "mac": "cmd+shift+w"
+        "command": "devflow.focus",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d"
       }
     ]
   },
@@ -60,11 +57,20 @@
     "copy-webview": "node -e \"const fs=require('fs'),p=require('path'),s=p.join('src','webview'),d=p.join('dist','webview');fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))\"",
     "compile": "tsc -p ./ && npm run copy-webview",
     "watch": "tsc -watch -p ./",
-    "package": "npm run compile && npx @vscode/vsce package --out releases/"
+    "clean": "node -e \"const fs=require('fs');const p=require('path');const d='dist';if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>{const fp=p.join(d,f);if(fs.statSync(fp).isFile())fs.unlinkSync(fp);});\"",
+    "bundle": "npm run clean && esbuild src/extension.ts --bundle --platform=node --target=node18 --outfile=dist/extension.tmp.js --minify --external:vscode && npx javascript-obfuscator dist/extension.tmp.js --output dist/extension.js --compact true --string-array true --string-array-encoding base64 --self-defending false && node -e \"require('fs').unlinkSync('dist/extension.tmp.js')\" && npm run copy-webview",
+    "bundle-servers": "cd central-server && npm run bundle && cd ../mcp-server && npm run bundle && cd .. && node -e \"const fs=require('fs');const path=require('path');['central-server','mcp-server'].forEach(s=>{const d=path.join('bundled',s);fs.mkdirSync(d,{recursive:true});fs.copyFileSync(path.join(s,'dist','index.js'),path.join(d,'index.js'));})\"",
+    "package": "npm run bundle && npm run bundle-servers && npx @vscode/vsce package --out releases/"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/vscode": "^1.80.0",
-    "typescript": "^5.0.0"
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "esbuild": "^0.20.2",
+    "javascript-obfuscator": "^4.1.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   }
 }
