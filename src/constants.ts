@@ -10,7 +10,8 @@ export const STARTUP_DELAY_MS = 500;
 
 export const COMMANDS = {
     FOCUS: 'devflow.focus',
-    PANEL_FOCUS: 'devflow.panel.focus'
+    PANEL_FOCUS: 'devflow.panel.focus',
+    REGENERATE: 'devflow.regenerate'
 };
 
 export const VIEWS = {

@@ -237,7 +237,7 @@ export class McpManager {
   /**
    * 写入全局规则文件（自动注入开场白到 Windsurf 的 memories 目录）
    */
-  private writeGlobalRules(toolName: string, panelId: string) {
+  writeGlobalRules(toolName: string, panelId: string) {
     const memoriesDir = path.join(this.getMcpConfigDir(), 'memories');
     const rulesPath = path.join(memoriesDir, 'global_rules.md');
 

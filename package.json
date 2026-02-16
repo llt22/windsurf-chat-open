@@ -43,6 +43,10 @@
       {
         "command": "devflow.focus",
         "title": "DevFlow: Focus Panel"
+      },
+      {
+        "command": "devflow.regenerate",
+        "title": "DevFlow: Regenerate MCP Tool Name"
       }
     ],
     "keybindings": [
