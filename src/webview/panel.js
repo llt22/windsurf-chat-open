@@ -242,6 +242,14 @@
     }
   });
 
+  // == Regenerate Tool Name ==
+  $('regenerateBtn').addEventListener('click', () => {
+    vscode.postMessage({ type: 'regenerate' });
+    const btn = $('regenerateBtn');
+    btn.textContent = '✅';
+    setTimeout(() => { btn.textContent = '🔄'; }, 2000);
+  });
+
   // == Copy Opener ==
   $('copyOpenerBtn').addEventListener('click', () => {
     if (!currentToolName) return;

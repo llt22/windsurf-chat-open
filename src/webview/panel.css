@@ -74,6 +74,10 @@ button:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
 .modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
 .modal-close { position: absolute; top: 20px; right: 20px; color: white; font-size: 30px; cursor: pointer; background: none; border: none; }
 
+/* Regenerate Button */
+.btn-regenerate { background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 6px; opacity: 0.6; transition: opacity 0.2s; line-height: 1; }
+.btn-regenerate:hover { opacity: 1; background: var(--vscode-list-hoverBackground); border-radius: 3px; }
+
 /* Connection Status */
 .connection-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--vscode-testing-iconPassed); }
 .connection-status.disconnected { background: var(--vscode-testing-iconFailed); }

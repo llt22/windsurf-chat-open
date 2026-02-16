@@ -23,7 +23,7 @@ export interface UserResponse {
 }
 
 interface WebviewMessage {
-  type: 'ready' | 'continue' | 'end' | 'submit' | 'getWorkspaceRoot';
+  type: 'ready' | 'continue' | 'end' | 'submit' | 'getWorkspaceRoot' | 'regenerate';
   text?: string;
   images?: string[];
   files?: Array<{ name: string; path: string; size: number }>;
@@ -119,6 +119,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         if (folders && folders.length > 0) {
           this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot: folders[0].uri.fsPath });
         }
+        break;
+      case 'regenerate':
+        vscode.commands.executeCommand(COMMANDS.REGENERATE);
         break;
     }
   }
