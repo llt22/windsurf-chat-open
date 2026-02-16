@@ -4,4 +4,4 @@
 !LICENSE*
 !dist/extension.js
 !dist/webview/**
-!bundled/**
+!bundled/central-server/**

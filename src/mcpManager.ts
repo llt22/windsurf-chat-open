@@ -78,8 +78,6 @@ export class McpManager {
     const name = toolName || this.getToolName();
     const configDir = this.getMcpConfigDir();
     const configPath = this.getMcpConfigPath();
-    const mcpServerPath = path.join(this.extensionPath, 'bundled', 'mcp-server', 'index.js');
-
     try {
       // 确保目录存在
       if (!fs.existsSync(configDir)) {
@@ -103,20 +101,17 @@ export class McpManager {
         delete config.mcpServers[this.previousToolName];
       }
 
-      // 删除旧格式的默认名
+      // 只删除旧格式的默认名（不删其他 df_ 条目，避免多窗口冲突）
       for (const key of Object.keys(config.mcpServers)) {
-        if (key !== name && (key.endsWith('_dev') || key.startsWith('df_'))) {
+        if (key !== name && key.endsWith('_dev')) {
           delete config.mcpServers[key];
         }
       }
 
-      // 写入新的工具名
+      // 写入新的工具名（HTTP serverUrl 模式）
       config.mcpServers[name] = {
-        command: 'node',
-        args: [mcpServerPath],
-        env: {
-          DEVFLOW_TOOL_NAME: name,
-        },
+        serverUrl: 'http://127.0.0.1:23985/mcp',
+        disabled: false,
       };
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -144,7 +139,7 @@ export class McpManager {
       this.centralServerProcess = child_process.spawn('node', [serverScript], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
-        env: { ...process.env },
+        env: { ...process.env, DEVFLOW_TOOL_NAME: this.getToolName() },
       });
 
       this.centralServerProcess.stdout?.on('data', (data: Buffer) => {

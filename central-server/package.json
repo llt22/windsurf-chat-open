@@ -8,7 +8,9 @@
     "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --outfile=dist/index.js --minify"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "ws": "^8.18.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

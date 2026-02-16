@@ -1,14 +1,22 @@
 #!/usr/bin/env node
 /**
  * DevFlow Central Server
- * WebSocket 中继服务，连接 Extension 和 MCP Server
+ * 单进程同时提供：
+ * - WebSocket（Extension 通信）
+ * - HTTP SSE MCP 端点（Windsurf AI 调用）
  */
 
+import * as http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { z } from 'zod';
 import * as crypto from 'crypto';
 
 const PORT = 23985;
 const HEARTBEAT_INTERVAL = 30000;
+
+const currentToolName = process.env.DEVFLOW_TOOL_NAME || 'dev_mcp';
 
 interface PanelClient {
   ws: WebSocket;
@@ -16,71 +24,65 @@ interface PanelClient {
   toolName: string;
 }
 
-interface McpClient {
-  ws: WebSocket;
-  id: string;
-}
-
 interface WsMessage {
   type: string;
   msgId?: string;
   panelId?: string;
   toolName?: string;
+  requestId?: string;
   context?: string;
   question?: string;
   targetPanelId?: string;
   choices?: string[];
   content?: string;
   action?: string;
-  timestamp?: number;
   [key: string]: any;
 }
 
+// 待处理的 MCP 工具调用（等待用户响应）
+interface PendingMcpCall {
+  resolve: (result: { content: string; panelId: string; action: string }) => void;
+  timestamp: number;
+}
+
 class CentralServer {
+  private httpServer: http.Server | null = null;
   private wss: WebSocketServer | null = null;
   private panels: Map<string, PanelClient> = new Map();
-  private mcpClients: Map<string, McpClient> = new Map();
-  private pendingRequests: Map<string, { mcpClientId: string; timestamp: number }> = new Map();
+  private pendingMcpCalls: Map<string, PendingMcpCall> = new Map();
+  private sseTransports: Map<string, SSEServerTransport> = new Map();
   private heartbeatTimer?: NodeJS.Timeout;
-  private currentToolName: string = '';
 
   start() {
-    this.wss = new WebSocketServer({ port: PORT, host: '127.0.0.1' });
+    // HTTP 服务（同时处理 SSE MCP 和 WebSocket upgrade）
+    this.httpServer = http.createServer((req, res) => this.handleHttp(req, res));
 
-    this.wss.on('listening', () => {
-      console.error(`[DevFlow Central] Listening on ws://127.0.0.1:${PORT}`);
-    });
+    // WebSocket 服务（附加到 HTTP 服务）
+    this.wss = new WebSocketServer({ server: this.httpServer });
 
     this.wss.on('connection', (ws) => {
       const clientId = crypto.randomBytes(8).toString('hex');
-      console.error(`[DevFlow Central] Client connected: ${clientId}`);
 
       ws.on('message', (data: Buffer) => {
         try {
           const msg: WsMessage = JSON.parse(data.toString());
-
-          // 发送 ACK
-          if (msg.msgId) {
-            this.sendAck(ws, msg.msgId);
-          }
-
-          this.handleMessage(clientId, ws, msg);
+          if (msg.msgId) this.sendAck(ws, msg.msgId);
+          this.handleWsMessage(clientId, ws, msg);
         } catch (e) {
           console.error('[DevFlow Central] Parse error:', e);
         }
       });
 
       ws.on('close', () => {
-        console.error(`[DevFlow Central] Client disconnected: ${clientId}`);
-        this.removeClient(clientId);
+        this.panels.delete(clientId);
       });
 
       ws.on('error', (err) => {
-        console.error(`[DevFlow Central] Client error: ${clientId}`, err.message);
+        console.error(`[DevFlow Central] WS error: ${err.message}`);
       });
     });
 
-    this.wss.on('error', (err: any) => {
+    this.httpServer.on('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`[DevFlow Central] Port ${PORT} in use, exiting`);
         process.exit(1);
@@ -88,8 +90,200 @@ class CentralServer {
       console.error('[DevFlow Central] Server error:', err);
     });
 
+    this.httpServer.listen(PORT, '127.0.0.1', () => {
+      console.error(`[DevFlow Central] Listening on http://127.0.0.1:${PORT}`);
+      console.error(`[DevFlow Central] MCP tool: ${currentToolName}`);
+    });
+
     this.startHeartbeat();
   }
+
+  // ========== HTTP 处理（MCP SSE）==========
+
+  private handleHttp(req: http.IncomingMessage, res: http.ServerResponse) {
+    // CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`);
+
+    if (req.method === 'GET' && url.pathname === '/mcp') {
+      this.handleSseConnect(req, res);
+    } else if (req.method === 'POST' && url.pathname === '/messages') {
+      this.handleSseMessage(req, res, url);
+    } else {
+      res.writeHead(404);
+      res.end('Not Found');
+    }
+  }
+
+  private async handleSseConnect(_req: http.IncomingMessage, res: http.ServerResponse) {
+    try {
+      const transport = new SSEServerTransport('/messages', res);
+      const sessionId = transport.sessionId;
+      this.sseTransports.set(sessionId, transport);
+
+      transport.onclose = () => {
+        this.sseTransports.delete(sessionId);
+        console.error(`[DevFlow Central] SSE closed: ${sessionId}`);
+      };
+
+      const mcpServer = this.createMcpServer();
+      await mcpServer.connect(transport);
+      console.error(`[DevFlow Central] SSE connected: ${sessionId}`);
+    } catch (e) {
+      console.error('[DevFlow Central] SSE connect error:', e);
+      if (!res.headersSent) {
+        res.writeHead(500);
+        res.end('SSE error');
+      }
+    }
+  }
+
+  private async handleSseMessage(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
+    const sessionId = url.searchParams.get('sessionId');
+    if (!sessionId) {
+      res.writeHead(400);
+      res.end('Missing sessionId');
+      return;
+    }
+
+    const transport = this.sseTransports.get(sessionId);
+    if (!transport) {
+      res.writeHead(404);
+      res.end('Session not found');
+      return;
+    }
+
+    try {
+      const body = await this.parseBody(req);
+      await transport.handlePostMessage(req, res, body);
+    } catch (e) {
+      console.error('[DevFlow Central] SSE message error:', e);
+      if (!res.headersSent) {
+        res.writeHead(500);
+        res.end('Error');
+      }
+    }
+  }
+
+  private parseBody(req: http.IncomingMessage): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+      req.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch (e) { reject(e); }
+      });
+      req.on('error', reject);
+    });
+  }
+
+  // ========== MCP Server 工厂 ==========
+
+  private createMcpServer(): McpServer {
+    const server = new McpServer({ name: currentToolName, version: '1.0.0' });
+
+    server.tool(
+      currentToolName,
+      currentToolName,
+      {
+        context: z.string().describe('当前对话的上下文摘要，你已完成的工作'),
+        question: z.string().optional().describe('询问下一步想要做什么'),
+        targetPanelId: z.string().optional().describe('目标面板ID'),
+        choices: z.array(z.string()).optional().describe('可选的快速回复选项列表'),
+      },
+      async ({ context, question, targetPanelId, choices }) => {
+        try {
+          const response = await this.waitForUserResponse(context, question, targetPanelId, choices);
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                user_input: response.content,
+                action: response.action,
+                panelId: response.panelId,
+              }, null, 2),
+            }],
+          };
+        } catch (err) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                user_input: '系统错误: ' + (err instanceof Error ? err.message : '未知错误'),
+                action: 'continue',
+              }, null, 2),
+            }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    return server;
+  }
+
+  // ========== 等待用户响应（核心桥接）==========
+
+  private waitForUserResponse(
+    context: string, question?: string, targetPanelId?: string, choices?: string[]
+  ): Promise<{ content: string; panelId: string; action: string }> {
+    return new Promise((resolve, reject) => {
+      const requestId = crypto.randomBytes(8).toString('hex');
+
+      // 找目标面板
+      let targetPanel: PanelClient | undefined;
+      if (targetPanelId) {
+        for (const panel of this.panels.values()) {
+          if (panel.panelId === targetPanelId) {
+            targetPanel = panel;
+            break;
+          }
+        }
+      }
+      if (!targetPanel) {
+        targetPanel = this.panels.values().next().value;
+      }
+
+      if (!targetPanel || targetPanel.ws.readyState !== WebSocket.OPEN) {
+        resolve({ content: '没有可用的面板，请确保 DevFlow 面板已打开', panelId: '', action: 'continue' });
+        return;
+      }
+
+      // 注册等待
+      this.pendingMcpCalls.set(requestId, { resolve, timestamp: Date.now() });
+
+      // 发送到面板
+      this.sendToClient(targetPanel.ws, {
+        type: 'wait_request',
+        requestId,
+        context: context || '',
+        question: question || '下一步想做什么？',
+        targetPanelId: targetPanel.panelId,
+        choices: choices || [],
+      });
+
+      console.error(`[DevFlow Central] Wait request ${requestId} → panel ${targetPanel.panelId}`);
+
+      // 超时（5分钟）
+      setTimeout(() => {
+        if (this.pendingMcpCalls.has(requestId)) {
+          this.pendingMcpCalls.delete(requestId);
+          reject(new Error('等待用户响应超时'));
+        }
+      }, 5 * 60 * 1000);
+    });
+  }
+
+  // ========== WebSocket 处理（Extension）==========
 
   private sendAck(ws: WebSocket, msgId: string) {
     if (ws.readyState === WebSocket.OPEN) {
@@ -97,26 +291,14 @@ class CentralServer {
     }
   }
 
-  private handleMessage(clientId: string, ws: WebSocket, msg: WsMessage) {
+  private handleWsMessage(clientId: string, ws: WebSocket, msg: WsMessage) {
     switch (msg.type) {
       case 'register_panel':
         this.handlePanelRegister(clientId, ws, msg);
         break;
-
-      case 'register_mcp':
-        this.handleMcpRegister(clientId, ws);
-        break;
-
-      case 'wait_request':
-        this.handleWaitRequest(clientId, msg);
-        break;
-
       case 'user_response':
         this.handleUserResponse(msg);
         break;
-
-      default:
-        console.error(`[DevFlow Central] Unknown message type: ${msg.type}`);
     }
   }
 
@@ -124,7 +306,7 @@ class CentralServer {
     const panelId = msg.panelId || clientId;
     const toolName = msg.toolName || '';
 
-    // 移除旧的同 panelId 的连接
+    // 移除旧的同 panelId 连接
     for (const [id, panel] of this.panels) {
       if (panel.panelId === panelId && id !== clientId) {
         this.panels.delete(id);
@@ -132,186 +314,60 @@ class CentralServer {
     }
 
     this.panels.set(clientId, { ws, panelId, toolName });
+    console.error(`[DevFlow Central] Panel registered: ${panelId}`);
 
-    if (toolName && !this.currentToolName) {
-      this.currentToolName = toolName;
-    }
-
-    console.error(`[DevFlow Central] Panel registered: ${panelId} (tool: ${toolName})`);
-
-    // 发送确认和工具名
-    this.sendToClient(ws, {
-      type: 'server_info',
-      toolName: this.currentToolName || toolName,
-    });
-
-    // 通知 MCP 客户端有新面板
-    this.broadcastPanelsUpdate();
-  }
-
-  private handleMcpRegister(clientId: string, ws: WebSocket) {
-    this.mcpClients.set(clientId, { ws, id: clientId });
-    console.error(`[DevFlow Central] MCP client registered: ${clientId}`);
-
-    // 发送当前工具名和面板列表
-    this.sendToClient(ws, {
-      type: 'panels_update',
-      panels: this.getPanelIds(),
-    });
-
-    if (this.currentToolName) {
-      this.sendToClient(ws, {
-        type: 'tool_name_update',
-        toolName: this.currentToolName,
-      });
-    }
-  }
-
-  private handleWaitRequest(mcpClientId: string, msg: WsMessage) {
-    const targetPanelId = msg.targetPanelId;
-    const requestId = crypto.randomBytes(8).toString('hex');
-
-    // 找到目标面板
-    let targetPanel: PanelClient | undefined;
-
-    if (targetPanelId) {
-      for (const panel of this.panels.values()) {
-        if (panel.panelId === targetPanelId) {
-          targetPanel = panel;
-          break;
-        }
-      }
-    }
-
-    // 如果没有指定目标或找不到，使用第一个可用面板
-    if (!targetPanel) {
-      const firstPanel = this.panels.values().next().value;
-      targetPanel = firstPanel;
-    }
-
-    if (!targetPanel || targetPanel.ws.readyState !== WebSocket.OPEN) {
-      // 没有可用面板，直接回复 MCP
-      const mcpClient = this.mcpClients.get(mcpClientId);
-      if (mcpClient && mcpClient.ws.readyState === WebSocket.OPEN) {
-        this.sendToClient(mcpClient.ws, {
-          type: 'user_response',
-          content: '没有可用的面板，请确保 DevFlow 面板已打开',
-          panelId: '',
-          action: 'continue',
-        });
-      }
-      return;
-    }
-
-    // 记录待处理请求
-    this.pendingRequests.set(requestId, {
-      mcpClientId,
-      timestamp: Date.now(),
-    });
-
-    // 转发给面板
-    this.sendToClient(targetPanel.ws, {
-      type: 'wait_request',
-      requestId,
-      context: msg.context || '',
-      question: msg.question || '下一步想做什么？',
-      targetPanelId: targetPanel.panelId,
-      choices: msg.choices || [],
-      timestamp: msg.timestamp || Date.now(),
-    });
-
-    console.error(`[DevFlow Central] Wait request ${requestId} → panel ${targetPanel.panelId}`);
+    this.sendToClient(ws, { type: 'server_info', toolName: currentToolName });
   }
 
   private handleUserResponse(msg: WsMessage) {
     const requestId = msg.requestId;
     if (!requestId) return;
 
-    const pending = this.pendingRequests.get(requestId);
+    const pending = this.pendingMcpCalls.get(requestId);
     if (!pending) {
-      console.error(`[DevFlow Central] No pending request for: ${requestId}`);
+      console.error(`[DevFlow Central] No pending request: ${requestId}`);
       return;
     }
 
-    this.pendingRequests.delete(requestId);
-
-    // 转发给 MCP 客户端
-    const mcpClient = this.mcpClients.get(pending.mcpClientId);
-    if (mcpClient && mcpClient.ws.readyState === WebSocket.OPEN) {
-      this.sendToClient(mcpClient.ws, {
-        type: 'user_response',
-        content: msg.content || '',
-        panelId: msg.panelId || '',
-        action: msg.action || 'continue',
-      });
-      console.error(`[DevFlow Central] User response → MCP ${pending.mcpClientId}`);
-    }
+    this.pendingMcpCalls.delete(requestId);
+    pending.resolve({
+      content: msg.content || '',
+      panelId: msg.panelId || '',
+      action: msg.action || 'continue',
+    });
+    console.error(`[DevFlow Central] User responded: ${requestId}`);
   }
 
-  private sendToClient(ws: WebSocket, data: WsMessage) {
+  private sendToClient(ws: WebSocket, data: any) {
     if (ws.readyState === WebSocket.OPEN) {
       const msgId = crypto.randomBytes(4).toString('hex');
       ws.send(JSON.stringify({ ...data, msgId }));
     }
   }
 
-  private broadcastPanelsUpdate() {
-    const panelIds = this.getPanelIds();
-    for (const mcp of this.mcpClients.values()) {
-      if (mcp.ws.readyState === WebSocket.OPEN) {
-        this.sendToClient(mcp.ws, {
-          type: 'panels_update',
-          panels: panelIds,
-        });
-      }
-    }
-  }
-
-  private getPanelIds(): string[] {
-    return Array.from(this.panels.values()).map(p => p.panelId);
-  }
-
-  private removeClient(clientId: string) {
-    if (this.panels.has(clientId)) {
-      this.panels.delete(clientId);
-      this.broadcastPanelsUpdate();
-    }
-    if (this.mcpClients.has(clientId)) {
-      this.mcpClients.delete(clientId);
-    }
-  }
+  // ========== 心跳 ==========
 
   private startHeartbeat() {
     this.heartbeatTimer = setInterval(() => {
       if (!this.wss) return;
       this.wss.clients.forEach((ws) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.ping();
-        }
+        if (ws.readyState === WebSocket.OPEN) ws.ping();
       });
     }, HEARTBEAT_INTERVAL);
   }
 
   stop() {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    for (const [, transport] of this.sseTransports) {
+      transport.close().catch(() => {});
     }
-    if (this.wss) {
-      this.wss.close();
-    }
+    this.sseTransports.clear();
+    if (this.httpServer) this.httpServer.close();
   }
 }
 
 const server = new CentralServer();
 server.start();
 
-// 优雅退出
-process.on('SIGTERM', () => {
-  server.stop();
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  server.stop();
-  process.exit(0);
-});
+process.on('SIGTERM', () => { server.stop(); process.exit(0); });
+process.on('SIGINT', () => { server.stop(); process.exit(0); });

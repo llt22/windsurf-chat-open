@@ -23,10 +23,15 @@ export class WsClient {
   private panelId: string;
   private toolName: string;
   private pendingAcks = new Map<string, { resolve: () => void; timer: NodeJS.Timeout }>();
+  private beforeReconnectHandler?: () => Promise<void>;
 
   constructor(panelId: string, toolName: string) {
     this.panelId = panelId;
     this.toolName = toolName;
+  }
+
+  onBeforeReconnect(handler: () => Promise<void>) {
+    this.beforeReconnectHandler = handler;
   }
 
   setMessageHandler(handler: MessageHandler) {
@@ -119,7 +124,12 @@ export class WsClient {
     const delay = WS_RECONNECT_DELAY * Math.min(this.reconnectAttempts, 5);
     console.log(`[DevFlow] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-    this.reconnectTimer = setTimeout(() => {
+    this.reconnectTimer = setTimeout(async () => {
+      try {
+        await this.beforeReconnectHandler?.();
+      } catch (e) {
+        // ignore
+      }
       this.connect().catch((err) => {
         console.error('[DevFlow] Reconnect failed:', err.message);
       });

@@ -78,6 +78,12 @@ class ExtensionStateManager {
         this.wsClient = new WsClient(this.panelId, toolName);
         this.wsClient.setMessageHandler((msg) => this.handleWsMessage(msg));
 
+        // 重连前尝试启动 Central Server（另一个 IDE 关闭后接管）
+        this.wsClient.onBeforeReconnect(async () => {
+          this.mcpManager.startCentralServer();
+          await new Promise(r => setTimeout(r, 1000));
+        });
+
         await this.wsClient.connect().catch((err: any) => {
           console.error('[DevFlow] Initial WS connection failed:', err.message);
         });
@@ -109,8 +115,11 @@ class ExtensionStateManager {
         break;
 
       case 'server_info':
-        if (msg.toolName) {
-          console.log(`[DevFlow] Server tool name: ${msg.toolName}`);
+        if (msg.toolName && msg.toolName !== this.mcpManager.getToolName()) {
+          // 服务器已有工具名（另一个 IDE 先启动），同步到本地
+          console.log(`[DevFlow] Syncing tool name from server: ${msg.toolName}`);
+          this.mcpManager.updateToolName(msg.toolName);
+          this.panelProvider.setToolName(msg.toolName);
         }
         break;
 
