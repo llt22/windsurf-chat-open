@@ -82,8 +82,3 @@ button:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
 .connection-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--vscode-testing-iconPassed); }
 .connection-status.disconnected { background: var(--vscode-testing-iconFailed); }
 
-/* Tool Info */
-.tool-info { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
-.tool-name { font-size: 11px; color: var(--vscode-descriptionForeground); opacity: 0.7; font-family: monospace; }
-.btn-copy { padding: 6px 16px; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 4px; cursor: pointer; font-size: 12px; transition: background 0.1s; }
-.btn-copy:hover { background: var(--vscode-button-hoverBackground); opacity: 1; }

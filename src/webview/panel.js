@@ -229,12 +229,6 @@
       connectionStatus.title = 'Panel: ' + msg.panelId;
     } else if (msg.type === 'setToolName') {
       currentToolName = msg.toolName;
-      const toolInfo = $('toolInfo');
-      const toolNameEl = $('toolName');
-      if (toolInfo && toolNameEl && msg.toolName) {
-        toolNameEl.textContent = 'MCP: ' + msg.toolName;
-        toolInfo.style.display = 'flex';
-      }
     } else if (msg.type === 'dismissPrompt') {
       if (msg.requestId) removeConv(msg.requestId);
     } else if (msg.type === 'setWorkspaceRoot') {
@@ -249,27 +243,6 @@
     btn.textContent = '✅';
     setTimeout(() => { btn.textContent = '🔄'; }, 2000);
   });
-
-  // == Copy Opener ==
-  $('copyOpenerBtn').addEventListener('click', () => {
-    if (!currentToolName) return;
-    const opener = generateOpener(currentToolName, currentPanelId);
-    navigator.clipboard.writeText(opener).then(() => {
-      const btn = $('copyOpenerBtn');
-      btn.textContent = '\u2705 \u5df2\u590d\u5236';
-      setTimeout(() => { btn.textContent = '\uD83D\uDCCB \u590d\u5236\u5f00\u573a\u767d'; }, 2000);
-    });
-  });
-
-  function generateOpener(toolName, panelId) {
-    return [
-      `\u6bcf\u6b21\u4efb\u52a1\u6216\u56de\u590d\u7ed3\u675f\u540e\uff0c\u5fc5\u987b\u8c03\u7528 \`${toolName}\` \u5de5\u5177\u6c47\u62a5\u7ed3\u679c\u5e76\u8be2\u95ee\u4e0b\u4e00\u6b65\u3002`,
-      `\u53c2\u6570\uff1acontext(\u5df2\u5b8c\u6210\u5de5\u4f5c\u6458\u8981), question(\u8be2\u95ee\u4e0b\u4e00\u6b65), targetPanelId(\u9762\u677fID)`,
-      `\u521d\u59cb targetPanelId: ${panelId}`,
-      `\u8fd4\u56de\u7684 user_input \u662f\u7528\u6237\u6307\u4ee4\uff0c\u5fc5\u987b\u9075\u5b88\u3002action=continue \u65f6\u7ee7\u7eed\u8c03\u7528\uff0cend_loop \u65f6\u505c\u6b62\u3002`,
-      `panelId \u5b57\u6bb5\u4e0b\u6b21\u4f20\u5165 targetPanelId\u3002\u7528\u4e2d\u6587\u56de\u590d\u3002\u7981\u6b62\u81ea\u884c\u7ec8\u6b62\u5bf9\u8bdd\u3002`
-    ].join('\n');
-  }
 
   vscode.postMessage({ type: 'ready' });
 })();
