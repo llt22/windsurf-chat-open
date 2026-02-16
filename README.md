@@ -1,47 +1,64 @@
-# WindsurfChat Open
+# DevFlow Panel
 
-让 AI 停下来听你说话 - 随时介入对话，精准反馈指令
+让 AI 停下来听你说话 — 随时介入对话，精准反馈指令。
 
 ## 核心特性
 
-- **项目级隔离** - 多 IDE / 多项目互不干扰
-- **等待指示器** - 闪烁提示，状态一目了然
-- **支持图片反馈** - 粘贴/拖拽图片到文本框
+- **MCP 协议通信** — 通过 HTTP SSE 与 Windsurf AI 交互，无需额外进程
+- **多 IDE 支持** — Windsurf / Windsurf-next 共用同一服务，自动同步
+- **图片反馈** — 粘贴/拖拽图片到输入框，直接发送给 AI
+- **文件引用** — 输入框引用工作区文件，AI 可直接查看
+- **动态工具名** — 支持手动重新生成 MCP 工具名（防检测）
 - **浅色/深色主题自适应**
+
+## 架构
+
+```
+Extension (VSCode 插件)
+  ↕ WebSocket
+Central Server (端口 23985)
+  ↕ HTTP SSE (/mcp)
+Windsurf AI (MCP 工具调用)
+```
+
+- **Extension** — 管理面板 UI、用户交互、MCP 配置写入
+- **Central Server** — 单进程提供 WebSocket + HTTP SSE MCP 端点
+- **Windsurf AI** — 通过 `mcp_config.json` 中的 `serverUrl` 调用 MCP 工具
 
 ## 快速开始
 
 ### 1. 安装插件
 
-从 [Releases](https://github.com/nicepkg/windsurf-chat-open/releases) 下载 `.vsix` 文件，然后：
+从 [Releases](https://github.com/nicepkg/windsurf-chat-open/releases) 下载 `.vsix` 文件：
 
 ```
 Ctrl+Shift+P → Extensions: Install from VSIX...
 ```
 
-### 2. 配置全局提示词
+### 2. 重启 IDE
 
-在 Windsurf **全局提示词** 中添加：
+安装后重启 Windsurf，插件会自动：
+- 启动 Central Server
+- 注册 MCP 工具到 `~/.codeium/windsurf/mcp_config.json`（或 `windsurf-next`）
+- 注入规则到 `global_rules.md`
 
-```
-遵循工作区规则，每次回复结束前调用脚本
-```
+### 3. 使用面板
 
-### 3. 打开面板
-点击右下角 `windsurf-chat-open`打开面板
-![img.png](img.png)
+点击底部状态栏 **DevFlow** 或使用快捷键 `Ctrl+Shift+D` 打开面板。
 
-### 4. 开始使用
+## 命令
 
-## 说明
+| 命令 | 说明 |
+|---|---|
+| `DevFlow: Focus Panel` | 聚焦到 DevFlow 面板 |
+| `DevFlow: Regenerate MCP Tool Name` | 手动生成新的 MCP 工具名 |
 
-**文件创建**：插件会在项目根目录自动创建：
-- `.windsurfchatopen/` 文件夹 - 存储核心脚本和会话数据
-- `.windsurfrules` 文件 - 工作区规则文件，AI 会自动读取并遵循其中的规则
+## 多 IDE 共用
 
-如果是 git 项目，上述文件会自动添加到 `.gitignore`，不会影响版本控制。
-
-**超时保护**：AI 等待超过 30 分钟会自动超时，避免长时间占用。
+两个 IDE 同时运行时：
+1. 先启动的 IDE 占用 Central Server（端口 23985）
+2. 后启动的 IDE 自动连接已有服务，同步工具名
+3. 先启动的 IDE 关闭后，另一个 IDE 自动接管服务器
 
 ## 开源协议
 
