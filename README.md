@@ -60,6 +60,40 @@ Ctrl+Shift+P → Extensions: Install from VSIX...
 2. 后启动的 IDE 自动连接已有服务，同步工具名
 3. 先启动的 IDE 关闭后，另一个 IDE 自动接管服务器
 
+## 从旧版迁移（v2.x → v3.0）
+
+v3.0 使用 MCP 协议替代了旧版的脚本注入方式，需要清理旧版自动生成的文件：
+
+### 1. 卸载旧版插件
+
+```
+Ctrl+Shift+P → Extensions: Uninstall → 搜索旧插件名卸载
+```
+
+### 2. 清理项目中的旧文件
+
+删除每个项目根目录下旧版自动创建的文件：
+
+```bash
+# 删除旧版工作目录和规则文件
+rm -rf .windsurfchatopen/
+rm -f .windsurfrules
+```
+
+Windows PowerShell：
+```powershell
+Remove-Item -Recurse -Force .windsurfchatopen -ErrorAction SilentlyContinue
+Remove-Item -Force .windsurfrules -ErrorAction SilentlyContinue
+```
+
+### 3. 清理全局提示词
+
+打开 Windsurf 设置，删除旧版全局提示词中的相关内容（如"遵循工作区规则，每次回复结束前调用脚本"）。
+
+### 4. 安装新版
+
+按上方「快速开始」步骤安装 v3.0 即可。
+
 ## 开源协议
 
 MIT License
