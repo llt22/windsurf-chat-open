@@ -14,12 +14,7 @@ export class McpManager {
   private centralServerProcess: child_process.ChildProcess | null = null;
   private currentToolName: string = '';
   private previousToolName: string = '';
-  private readonly isWindsurfNext: boolean;
-
-  constructor(private readonly extensionPath: string) {
-    // 通过扩展安装路径判断是 windsurf 还是 windsurf-next
-    this.isWindsurfNext = extensionPath.includes('windsurf-next');
-  }
+  constructor(private readonly extensionPath: string) {}
 
   /**
    * 生成随机工具名（df_ 前缀 + 6位字母数字）
@@ -60,8 +55,7 @@ export class McpManager {
    */
   private getMcpConfigDir(): string {
     const homeDir = os.homedir();
-    const dirName = this.isWindsurfNext ? 'windsurf-next' : 'windsurf';
-    return path.join(homeDir, '.codeium', dirName);
+    return path.join(homeDir, '.codeium', 'windsurf');
   }
 
   /**
