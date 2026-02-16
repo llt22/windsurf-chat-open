@@ -54,18 +54,9 @@ Windsurf AI (MCP 工具调用)
 
 ## ⚠️ 从旧版迁移
 
-v3.0.0 完全重写了通信架构，不兼容旧版。升级前需清理旧版文件：
+v3.0 使用 MCP 协议替代了旧版脚本注入方式，**旧版自动生成的文件会干扰正常对话**，必须清理：
 
-1. **卸载旧版插件** — `Ctrl+Shift+P` → `Extensions: Uninstall`
-2. **删除项目中的旧文件** — 每个项目根目录下：
-   ```bash
-   rm -rf .windsurfchatopen/
-   rm -f .windsurfrules
-   ```
-   Windows：
-   ```powershell
-   Remove-Item -Recurse -Force .windsurfchatopen -ErrorAction SilentlyContinue
-   Remove-Item -Force .windsurfrules -ErrorAction SilentlyContinue
-   ```
-3. **清理全局提示词** — 删除旧版全局提示词中的相关内容
-4. **安装新版** — 下载 VSIX 安装即可
+1. 卸载旧版插件
+2. 删除项目中旧版自动生成的 `.windsurfchatopen/` 目录和 `.windsurfrules` 文件
+3. 清理 Windsurf 全局提示词中旧版相关内容
+4. 安装新版
