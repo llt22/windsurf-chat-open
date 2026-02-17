@@ -22,6 +22,13 @@ export class McpManager {
   }
 
   /**
+   * 获取当前 IDE 对应的 Central Server 端口
+   */
+  getPort(): number {
+    return this.isWindsurfNext ? 23986 : 23985;
+  }
+
+  /**
    * 生成随机工具名（df_ 前缀 + 6位字母数字）
    */
   generateToolName(): string {
@@ -110,7 +117,7 @@ export class McpManager {
 
       // 写入新的工具名（HTTP serverUrl 模式）
       config.mcpServers[name] = {
-        serverUrl: 'http://127.0.0.1:23985/mcp',
+        serverUrl: `http://127.0.0.1:${this.getPort()}/mcp`,
         disabled: false,
       };
 
@@ -139,7 +146,7 @@ export class McpManager {
       this.centralServerProcess = child_process.spawn('node', [serverScript], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
-        env: { ...process.env, DEVFLOW_TOOL_NAME: this.getToolName() },
+        env: { ...process.env, DEVFLOW_TOOL_NAME: this.getToolName(), DEVFLOW_PORT: String(this.getPort()) },
       });
 
       this.centralServerProcess.stdout?.on('data', (data: Buffer) => {

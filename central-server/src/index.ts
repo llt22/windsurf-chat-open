@@ -15,7 +15,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import * as crypto from 'crypto';
 
-const PORT = 23985;
+const PORT = parseInt(process.env.DEVFLOW_PORT || '23985', 10);
 const HEARTBEAT_INTERVAL = 30000;
 
 const currentToolName = process.env.DEVFLOW_TOOL_NAME || 'dev_mcp';

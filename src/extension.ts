@@ -80,7 +80,8 @@ class ExtensionStateManager {
         this.panelProvider.setToolName(toolName);
 
         // 连接 Central Server
-        this.wsClient = new WsClient(this.panelId, toolName);
+        const port = this.mcpManager.getPort();
+        this.wsClient = new WsClient(this.panelId, toolName, port);
         this.wsClient.setMessageHandler((msg) => this.handleWsMessage(msg));
 
         // 重连前尝试启动 Central Server（另一个 IDE 关闭后接管）
@@ -120,22 +121,8 @@ class ExtensionStateManager {
         break;
 
       case 'server_info':
-        if (msg.toolName && msg.toolName !== this.mcpManager.getToolName()) {
-          // 服务器已有工具名（另一个 IDE 先启动），同步到本地
-          console.log(`[DevFlow] Syncing tool name from server: ${msg.toolName}`);
-          this.mcpManager.updateToolName(msg.toolName);
-          this.mcpManager.writeGlobalRules(msg.toolName, this.panelId);
-          this.panelProvider.setToolName(msg.toolName);
-        }
-        break;
-
-      case 'tool_name_update':
-        if (msg.toolName) {
-          this.mcpManager.updateToolName(msg.toolName);
-          this.mcpManager.writeGlobalRules(msg.toolName, this.panelId);
-          this.wsClient?.updateToolName(msg.toolName);
-          this.panelProvider.setToolName(msg.toolName);
-        }
+        // 服务器返回信息（各 IDE 独立，无需同步 toolName）
+        console.log(`[DevFlow] Server info received, tool: ${msg.toolName}`);
         break;
 
       default:

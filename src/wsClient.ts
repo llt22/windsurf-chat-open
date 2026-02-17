@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import { WebSocket } from 'ws';
-import { CENTRAL_SERVER_URL, WS_RECONNECT_DELAY, WS_MAX_RECONNECT_ATTEMPTS } from './constants';
+import { WS_RECONNECT_DELAY, WS_MAX_RECONNECT_ATTEMPTS } from './constants';
 
 interface WsMessage {
   type: string;
@@ -22,12 +22,14 @@ export class WsClient {
   private messageHandler?: MessageHandler;
   private panelId: string;
   private toolName: string;
+  private serverUrl: string;
   private pendingAcks = new Map<string, { resolve: () => void; timer: NodeJS.Timeout }>();
   private beforeReconnectHandler?: () => Promise<void>;
 
-  constructor(panelId: string, toolName: string) {
+  constructor(panelId: string, toolName: string, port: number) {
     this.panelId = panelId;
     this.toolName = toolName;
+    this.serverUrl = `ws://127.0.0.1:${port}`;
   }
 
   onBeforeReconnect(handler: () => Promise<void>) {
@@ -47,7 +49,7 @@ export class WsClient {
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(CENTRAL_SERVER_URL);
+        this.ws = new WebSocket(this.serverUrl);
 
         this.ws.on('open', () => {
           console.log('[DevFlow] Connected to central server');
