@@ -146,7 +146,12 @@ export class McpManager {
       this.centralServerProcess = child_process.spawn('node', [serverScript], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
-        env: { ...process.env, DEVFLOW_TOOL_NAME: this.getToolName(), DEVFLOW_PORT: String(this.getPort()) },
+        env: { 
+          ...process.env, 
+          DEVFLOW_TOOL_NAME: this.getToolName(), 
+          DEVFLOW_PORT: String(this.getPort()),
+          DEVFLOW_MCP_TIMEOUT: process.env.DEVFLOW_MCP_TIMEOUT || '600000', // 默认 10 分钟，可通过环境变量覆盖
+        },
       });
 
       this.centralServerProcess.stdout?.on('data', (data: Buffer) => {
