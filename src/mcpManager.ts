@@ -199,6 +199,36 @@ export class McpManager {
   }
 
   /**
+   * 保存面板ID到持久化存储
+   */
+  savePanelId(panelId: string) {
+    const stateDir = path.join(this.getMcpConfigDir(), 'devflow');
+    try {
+      if (!fs.existsSync(stateDir)) {
+        fs.mkdirSync(stateDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(stateDir, 'panel_id'), panelId, 'utf-8');
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /**
+   * 从持久化存储加载面板ID
+   */
+  loadPanelId(): string | null {
+    const filePath = path.join(this.getMcpConfigDir(), 'devflow', 'panel_id');
+    try {
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, 'utf-8').trim() || null;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
    * 从持久化存储加载工具名
    */
   private loadToolName(): string | null {

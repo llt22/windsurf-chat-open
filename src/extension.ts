@@ -25,9 +25,10 @@ class ExtensionStateManager {
 
   constructor(private context: vscode.ExtensionContext) {
     const version = context.extension.packageJSON.version || '0.0.0';
-    this.panelId = 'panel-' + crypto.randomBytes(16).toString('hex');
-    this.panelProvider = new ChatPanelProvider(context.extensionUri, version);
     this.mcpManager = new McpManager(context.extensionPath);
+    this.panelId = this.mcpManager.loadPanelId() || 'panel-' + crypto.randomBytes(16).toString('hex');
+    this.mcpManager.savePanelId(this.panelId);
+    this.panelProvider = new ChatPanelProvider(context.extensionUri, version);
   }
 
   public async activate() {
