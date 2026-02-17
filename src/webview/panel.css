@@ -16,6 +16,9 @@ body {
 .header h1 { font-size: 15px; font-weight: 600; margin: 0; }
 .version { background: var(--vscode-badge-background); padding: 2px 6px; border-radius: 3px; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .header-right { display: flex; align-items: center; gap: 8px; }
+.header-info { display: flex; gap: 12px; padding: 4px 12px 0; font-size: 10px; color: var(--vscode-descriptionForeground); opacity: 0.7; }
+.info-item { cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.info-item:hover { opacity: 1; text-decoration: underline; }
 
 /* Empty State */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px 0; color: var(--vscode-descriptionForeground); font-size: 13px; opacity: 0.6; }

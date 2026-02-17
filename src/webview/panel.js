@@ -227,12 +227,30 @@
       currentPanelId = msg.panelId;
       connectionStatus.classList.remove('disconnected');
       connectionStatus.title = 'Panel: ' + msg.panelId;
+      $('infoPanelId').textContent = '🆔 ' + msg.panelId;
     } else if (msg.type === 'setToolName') {
       currentToolName = msg.toolName;
+      $('infoToolName').textContent = '🔧 ' + msg.toolName;
     } else if (msg.type === 'dismissPrompt') {
       if (msg.requestId) removeConv(msg.requestId);
     } else if (msg.type === 'setWorkspaceRoot') {
       if (msg.workspaceRoot) { workspaceRoot = msg.workspaceRoot; }
+    }
+  });
+
+  // == Info Item Click to Copy ==
+  $('infoToolName').addEventListener('click', () => {
+    if (currentToolName) {
+      navigator.clipboard.writeText(currentToolName).then(() => {
+        const el = $('infoToolName'); const orig = el.textContent; el.textContent = '✅ 已复制'; setTimeout(() => { el.textContent = orig; }, 1500);
+      });
+    }
+  });
+  $('infoPanelId').addEventListener('click', () => {
+    if (currentPanelId) {
+      navigator.clipboard.writeText(currentPanelId).then(() => {
+        const el = $('infoPanelId'); const orig = el.textContent; el.textContent = '✅ 已复制'; setTimeout(() => { el.textContent = orig; }, 1500);
+      });
     }
   });
 
