@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
+import * as http from 'http';
 import * as child_process from 'child_process';
 
 /**
@@ -249,19 +250,52 @@ export class McpManager {
   /**
    * 完整初始化流程
    */
+  /**
+   * 轮询 /health 端点，确认 central server 已就绪
+   */
+  private waitForServerReady(maxRetries = 15, interval = 500): Promise<boolean> {
+    return new Promise((resolve) => {
+      let retries = 0;
+      const check = () => {
+        const req = http.get(`http://127.0.0.1:${this.getPort()}/health`, (res) => {
+          if (res.statusCode === 200) {
+            resolve(true);
+          } else {
+            retry();
+          }
+        });
+        req.on('error', () => retry());
+        req.setTimeout(1000, () => { req.destroy(); retry(); });
+      };
+      const retry = () => {
+        retries++;
+        if (retries >= maxRetries) {
+          console.error('[DevFlow] Server health check failed after max retries');
+          resolve(false);
+        } else {
+          setTimeout(check, interval);
+        }
+      };
+      check();
+    });
+  }
+
   async initialize(panelId: string): Promise<string> {
     const toolName = this.getToolName();
 
     // 启动 central server
     this.startCentralServer();
 
-    // 等待 central server 启动
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 等待 central server 就绪（轮询 /health）
+    const ready = await this.waitForServerReady();
+    if (!ready) {
+      console.error('[DevFlow] Central server not ready, writing config anyway');
+    }
 
-    // 写入 MCP 配置（command 模式）
+    // 服务器就绪后再写入 MCP 配置
     this.writeMcpConfig();
 
-    // 写入全局规则（自动注入开场白）
+    // 写入全局规则
     this.writeGlobalRules(toolName, panelId);
 
     return toolName;
@@ -348,7 +382,28 @@ export class McpManager {
     }
   }
 
+  /**
+   * 清理 mcp_config.json 中的自己的条目（防止下次启动时 Windsurf 连接到空端口）
+   */
+  cleanupMcpConfig() {
+    const configPath = this.getMcpConfigPath();
+    try {
+      if (!fs.existsSync(configPath)) return;
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (!config.mcpServers) return;
+      const name = this.getToolName();
+      if (config.mcpServers[name]) {
+        delete config.mcpServers[name];
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.log(`[DevFlow] Cleaned up MCP config: ${name}`);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   dispose() {
+    this.cleanupMcpConfig();
     this.stopCentralServer();
   }
 }
