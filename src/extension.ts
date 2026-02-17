@@ -64,9 +64,6 @@ class ExtensionStateManager {
     this.context.subscriptions.push(
       vscode.commands.registerCommand(COMMANDS.FOCUS, () => {
         vscode.commands.executeCommand(COMMANDS.PANEL_FOCUS);
-      }),
-      vscode.commands.registerCommand(COMMANDS.REGENERATE, () => {
-        this.regenerateToolName();
       })
     );
 
@@ -143,16 +140,6 @@ class ExtensionStateManager {
     console.log(`[DevFlow] Wait request: ${req.requestId}`);
     const prompt = req.question || '下一步想做什么？';
     await this.panelProvider.showPrompt(prompt, req.requestId, req.context);
-  }
-
-  private regenerateToolName() {
-    const newName = this.mcpManager.generateToolName();
-    this.mcpManager.updateToolName(newName);
-    this.mcpManager.writeGlobalRules(newName, this.panelId);
-    this.wsClient?.updateToolName(newName);
-    this.panelProvider.setToolName(newName);
-    vscode.window.showInformationMessage(`DevFlow: MCP tool name regenerated → ${newName}`);
-    console.log(`[DevFlow] Tool name regenerated: ${newName}`);
   }
 
   public deactivate() {

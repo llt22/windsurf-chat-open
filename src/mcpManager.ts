@@ -7,17 +7,15 @@ import * as child_process from 'child_process';
 /**
  * 管理 MCP 配置和进程生命周期
  * - 启动/停止 Central Server 进程
- * - 自动写入 mcp_config.json（注册 MCP Server）
- * - 动态工具名生成和管理
+ * - 写入 mcp_config.json（command 模式，Windsurf spawn MCP Server）
+ * - 固定工具名（df_ws / df_wsn）
  */
 export class McpManager {
   private centralServerProcess: child_process.ChildProcess | null = null;
-  private currentToolName: string = '';
-  private previousToolName: string = '';
   private readonly isWindsurfNext: boolean;
+  private currentToolName: string = '';
 
   constructor(private readonly extensionPath: string) {
-    // 通过扩展安装路径判断是 windsurf 还是 windsurf-next
     this.isWindsurfNext = extensionPath.includes('windsurf-next');
   }
 
@@ -42,7 +40,7 @@ export class McpManager {
   }
 
   /**
-   * 获取当前工具名
+   * 获取当前工具名（从持久化加载或生成新的）
    */
   getToolName(): string {
     if (!this.currentToolName) {
@@ -50,16 +48,6 @@ export class McpManager {
       this.saveToolName(this.currentToolName);
     }
     return this.currentToolName;
-  }
-
-  /**
-   * 更新工具名
-   */
-  updateToolName(newName?: string) {
-    this.previousToolName = this.currentToolName;
-    this.currentToolName = newName || this.generateToolName();
-    this.saveToolName(this.currentToolName);
-    this.writeMcpConfig(this.currentToolName);
   }
 
   /**
@@ -79,14 +67,15 @@ export class McpManager {
   }
 
   /**
-   * 写入 MCP 配置（注册 MCP Server）
+   * 写入 MCP 配置（command 模式，Windsurf spawn MCP Server 进程）
    */
-  private writeMcpConfig(toolName?: string) {
-    const name = toolName || this.getToolName();
+  writeMcpConfig() {
+    const name = this.getToolName();
     const configDir = this.getMcpConfigDir();
     const configPath = this.getMcpConfigPath();
+    const mcpServerScript = path.join(this.extensionPath, 'bundled', 'mcp-server', 'index.js');
+
     try {
-      // 确保目录存在
       if (!fs.existsSync(configDir)) {
         fs.mkdirSync(configDir, { recursive: true });
       }
@@ -103,26 +92,26 @@ export class McpManager {
         }
       }
 
-      // 删除旧的工具名条目
-      if (this.previousToolName && this.previousToolName !== name) {
-        delete config.mcpServers[this.previousToolName];
-      }
-
-      // 只删除旧格式的默认名（不删其他 df_ 条目，避免多窗口冲突）
+      // 清理旧的 df_ 开头的条目
       for (const key of Object.keys(config.mcpServers)) {
-        if (key !== name && key.endsWith('_dev')) {
+        if (key.startsWith('df_')) {
           delete config.mcpServers[key];
         }
       }
 
-      // 写入新的工具名（HTTP serverUrl 模式）
+      // 写入 command 模式配置（Windsurf 直接 spawn MCP Server 进程）
       config.mcpServers[name] = {
-        serverUrl: `http://127.0.0.1:${this.getPort()}/mcp`,
+        command: 'node',
+        args: [mcpServerScript],
         disabled: false,
+        env: {
+          DEVFLOW_TOOL_NAME: name,
+          DEVFLOW_PORT: String(this.getPort()),
+        },
       };
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      console.log(`[DevFlow] Registered MCP server: ${name} in mcp_config.json`);
+      console.log(`[DevFlow] Registered MCP server: ${name} (command mode) in mcp_config.json`);
     } catch (e) {
       console.error('[DevFlow] Failed to write mcp_config.json:', e);
     }
@@ -148,7 +137,6 @@ export class McpManager {
         detached: false,
         env: { 
           ...process.env, 
-          DEVFLOW_TOOL_NAME: this.getToolName(), 
           DEVFLOW_PORT: String(this.getPort()),
         },
       });
@@ -210,6 +198,21 @@ export class McpManager {
   }
 
   /**
+   * 从持久化存储加载工具名
+   */
+  private loadToolName(): string | null {
+    const filePath = path.join(this.getMcpConfigDir(), 'devflow', 'tool_name');
+    try {
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, 'utf-8').trim() || null;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
    * 保存面板ID到持久化存储
    */
   savePanelId(panelId: string) {
@@ -240,21 +243,6 @@ export class McpManager {
   }
 
   /**
-   * 从持久化存储加载工具名
-   */
-  private loadToolName(): string | null {
-    const filePath = path.join(this.getMcpConfigDir(), 'devflow', 'tool_name');
-    try {
-      if (fs.existsSync(filePath)) {
-        return fs.readFileSync(filePath, 'utf-8').trim() || null;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  }
-
-  /**
    * 完整初始化流程
    */
   async initialize(panelId: string): Promise<string> {
@@ -266,8 +254,8 @@ export class McpManager {
     // 等待 central server 启动
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // 写入 MCP 配置
-    this.writeMcpConfig(toolName);
+    // 写入 MCP 配置（command 模式）
+    this.writeMcpConfig();
 
     // 写入全局规则（自动注入开场白）
     this.writeGlobalRules(toolName, panelId);
@@ -309,10 +297,8 @@ export class McpManager {
       const endIdx = existing.indexOf(endMarker);
 
       if (startIdx !== -1 && endIdx !== -1) {
-        // 替换现有的 DevFlow 规则
         existing = existing.substring(0, startIdx) + content + existing.substring(endIdx + endMarker.length);
       } else {
-        // 追加到末尾
         existing = existing.trimEnd() + (existing ? '\n' : '') + content;
       }
 

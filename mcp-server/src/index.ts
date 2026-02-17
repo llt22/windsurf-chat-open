@@ -4,12 +4,15 @@
  * stdio MCP 服务，通过 WebSocket 与 Central Server 通信
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import WebSocket from 'ws';
 
-const WS_URL = 'ws://127.0.0.1:23985';
+const WS_PORT = process.env.DEVFLOW_PORT || '23985';
+const WS_URL = `ws://127.0.0.1:${WS_PORT}`;
 const RECONNECT_DELAY = 2000;
 const MAX_RETRIES = 5;
 const MSG_TIMEOUT = 30000;
@@ -162,6 +165,7 @@ async function connectWebSocket(): Promise<WebSocket> {
             content: msg.content,
             panelId: msg.panelId,
             action: msg.action,
+            images: msg.images || [],
           });
           waitResolve = null;
           waitReject = null;
@@ -283,18 +287,32 @@ mcpServer.tool(
   async ({ context, question, targetPanelId, choices }: { context: string; question?: string; targetPanelId?: string; choices?: string[] }) => {
     try {
       const response = await sendWaitRequest(context, question, targetPanelId, choices);
-      const userInput = response.content;
-      const action = response.action || 'continue';
+      const contentItems: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          user_input: response.content,
+          action: response.action || 'continue',
+          panelId: response.panelId,
+        }, null, 2),
+      }];
 
-      const result: any = {
-        user_input: userInput,
-        action,
-        panelId: response.panelId,
-      };
+      // 读取图片文件并作为 image content 返回
+      if (response.images && response.images.length > 0) {
+        for (const imgPath of response.images) {
+          try {
+            if (fs.existsSync(imgPath)) {
+              const data = fs.readFileSync(imgPath).toString('base64');
+              const ext = path.extname(imgPath).toLowerCase();
+              const mimeMap: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp' };
+              contentItems.push({ type: 'image' as const, data, mimeType: mimeMap[ext] || 'image/png' });
+            }
+          } catch (e) {
+            console.error(`[DevFlow MCP] Failed to read image: ${imgPath}`, e);
+          }
+        }
+      }
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return { content: contentItems };
     } catch (err) {
       const errorResult: any = {
         user_input: '系统错误: ' + (err instanceof Error ? err.message : '未知错误'),

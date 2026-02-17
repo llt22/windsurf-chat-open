@@ -125,7 +125,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         }
         break;
       case 'regenerate':
-        vscode.commands.executeCommand(COMMANDS.REGENERATE);
+        // toolName 已固定，不再支持重新生成
         break;
     }
   }
