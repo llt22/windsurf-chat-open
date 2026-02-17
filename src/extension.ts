@@ -34,6 +34,11 @@ class ExtensionStateManager {
   public async activate() {
     console.log('[DevFlow] Activating extension...');
 
+    // 立即写入 global_rules.md，确保 memories 系统读取到最新的 panelId 和 toolName
+    const toolName = this.mcpManager.getToolName();
+    this.mcpManager.writeGlobalRules(toolName, this.panelId);
+    console.log(`[DevFlow] Global rules updated: tool=${toolName}, panel=${this.panelId}`);
+
     // 注册 Webview 面板
     this.context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(VIEWS.PANEL, this.panelProvider, {
