@@ -123,6 +123,7 @@ class ExtensionStateManager {
           // 服务器已有工具名（另一个 IDE 先启动），同步到本地
           console.log(`[DevFlow] Syncing tool name from server: ${msg.toolName}`);
           this.mcpManager.updateToolName(msg.toolName);
+          this.mcpManager.writeGlobalRules(msg.toolName, this.panelId);
           this.panelProvider.setToolName(msg.toolName);
         }
         break;
@@ -130,6 +131,7 @@ class ExtensionStateManager {
       case 'tool_name_update':
         if (msg.toolName) {
           this.mcpManager.updateToolName(msg.toolName);
+          this.mcpManager.writeGlobalRules(msg.toolName, this.panelId);
           this.wsClient?.updateToolName(msg.toolName);
           this.panelProvider.setToolName(msg.toolName);
         }

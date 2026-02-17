@@ -261,7 +261,7 @@ class CentralServer {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomBytes(8).toString('hex');
 
-      // 找目标面板
+      // 找目标面板（严格匹配 panelId，不 fallback 到其他面板，避免跨 IDE 路由）
       let targetPanel: PanelClient | undefined;
       if (targetPanelId) {
         for (const panel of this.panels.values()) {
@@ -272,11 +272,14 @@ class CentralServer {
         }
       }
       if (!targetPanel) {
-        targetPanel = this.panels.values().next().value;
+        // 仅当没有指定 targetPanelId 时才 fallback 到第一个面板
+        if (!targetPanelId) {
+          targetPanel = this.panels.values().next().value;
+        }
       }
 
       if (!targetPanel || targetPanel.ws.readyState !== WebSocket.OPEN) {
-        resolve({ content: '没有可用的面板，请确保 DevFlow 面板已打开', panelId: '', action: 'continue' });
+        resolve({ content: `目标面板 ${targetPanelId || '(未指定)'} 不可用，请确保对应 IDE 的 DevFlow 面板已打开`, panelId: '', action: 'continue' });
         return;
       }
 
