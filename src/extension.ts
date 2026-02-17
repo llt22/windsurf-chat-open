@@ -49,6 +49,7 @@ class ExtensionStateManager {
           content: response.text,
           panelId: this.panelId,
           action: response.action,
+          images: response.images,
         });
       }
     });

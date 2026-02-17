@@ -7,6 +7,8 @@
  */
 
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -41,7 +43,7 @@ interface WsMessage {
 
 // 待处理的 MCP 工具调用（等待用户响应）
 interface PendingMcpCall {
-  resolve: (result: { content: string; panelId: string; action: string }) => void;
+  resolve: (result: { content: string; panelId: string; action: string; images?: string[] }) => void;
   timestamp: number;
 }
 
@@ -203,16 +205,36 @@ class CentralServer {
       async ({ context, question, targetPanelId, choices }) => {
         try {
           const response = await this.waitForUserResponse(context, question, targetPanelId, choices);
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify({
-                user_input: response.content,
-                action: response.action,
-                panelId: response.panelId,
-              }, null, 2),
-            }],
-          };
+          const contentItems: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              user_input: response.content,
+              action: response.action,
+              panelId: response.panelId,
+            }, null, 2),
+          }];
+
+          // 读取图片文件并作为 image content 返回
+          if (response.images && response.images.length > 0) {
+            for (const imgPath of response.images) {
+              try {
+                if (fs.existsSync(imgPath)) {
+                  const data = fs.readFileSync(imgPath).toString('base64');
+                  const ext = path.extname(imgPath).toLowerCase();
+                  const mimeMap: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp' };
+                  contentItems.push({
+                    type: 'image' as const,
+                    data,
+                    mimeType: mimeMap[ext] || 'image/png',
+                  });
+                }
+              } catch (e) {
+                console.error(`[DevFlow Central] Failed to read image: ${imgPath}`, e);
+              }
+            }
+          }
+
+          return { content: contentItems };
         } catch (err) {
           return {
             content: [{
@@ -235,7 +257,7 @@ class CentralServer {
 
   private waitForUserResponse(
     context: string, question?: string, targetPanelId?: string, choices?: string[]
-  ): Promise<{ content: string; panelId: string; action: string }> {
+  ): Promise<{ content: string; panelId: string; action: string; images?: string[] }> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomBytes(8).toString('hex');
 
@@ -334,6 +356,7 @@ class CentralServer {
       content: msg.content || '',
       panelId: msg.panelId || '',
       action: msg.action || 'continue',
+      images: msg.images || [],
     });
     console.error(`[DevFlow Central] User responded: ${requestId}`);
   }

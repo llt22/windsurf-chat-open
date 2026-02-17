@@ -99,7 +99,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         }
         // 重放活跃的对话卡片
         for (const [rid, data] of this._activePrompts.entries()) {
-          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context, startTimer: true });
+          this._view?.webview.postMessage({ type: 'showPrompt', prompt: data.prompt, requestId: rid, context: data.context });
         }
         break;
       case 'continue':
@@ -170,7 +170,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       if (requestId) {
         this._activePrompts.set(requestId, { prompt, context });
       }
-      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context, startTimer: true });
+      this._view.webview.postMessage({ type: 'showPrompt', prompt, requestId, context });
     } else {
       this._onUserResponse.fire({
         action: 'error',

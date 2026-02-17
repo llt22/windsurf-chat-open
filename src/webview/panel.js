@@ -236,6 +236,28 @@
     }
   });
 
+  // == Copy Rules ==
+  $('copyRulesBtn').addEventListener('click', () => {
+    const rules = [
+      '<!-- DEVFLOW_RULES_START -->',
+      `每次任务或回复结束后，必须调用 \`${currentToolName}\` 工具汇报结果并询问下一步。`,
+      '参数：context(已完成工作摘要), question(询问下一步), targetPanelId(面板ID)',
+      `初始 targetPanelId: ${currentPanelId}`,
+      '返回的 user_input 是用户指令，必须遵守。action=continue 时继续调用，end_loop 时停止。',
+      'panelId 字段下次传入 targetPanelId。用中文回复。禁止自行终止对话。',
+      '<!-- DEVFLOW_RULES_END -->',
+    ].join('\n');
+    navigator.clipboard.writeText(rules).then(() => {
+      const btn = $('copyRulesBtn');
+      btn.textContent = '✅';
+      setTimeout(() => { btn.textContent = '📋'; }, 2000);
+    }).catch(() => {
+      const btn = $('copyRulesBtn');
+      btn.textContent = '❌';
+      setTimeout(() => { btn.textContent = '📋'; }, 2000);
+    });
+  });
+
   // == Regenerate Tool Name ==
   $('regenerateBtn').addEventListener('click', () => {
     vscode.postMessage({ type: 'regenerate' });
