@@ -34,6 +34,9 @@ class ExtensionStateManager {
   public async activate() {
     console.log('[DevFlow] Activating extension...');
 
+    // 激活时立即清理旧的 mcp_config 条目（防止 Windsurf 连接到未启动的服务器）
+    this.mcpManager.cleanupMcpConfig();
+
     // 立即写入 global_rules.md，确保 memories 系统读取到最新的 panelId 和 toolName
     const toolName = this.mcpManager.getToolName();
     this.mcpManager.writeGlobalRules(toolName, this.panelId);

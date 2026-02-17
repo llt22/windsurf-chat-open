@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 
 const PORT = parseInt(process.env.DEVFLOW_PORT || '24816', 10);
@@ -210,35 +210,46 @@ mcpServer.tool(
   }
 );
 
-// ========== SSE Transport 管理 ==========
+// ========== StreamableHTTP Transport ==========
 
-const sseTransports: Map<string, SSEServerTransport> = new Map();
+let mcpTransport: StreamableHTTPServerTransport | null = null;
+
+async function initMcpTransport() {
+  mcpTransport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomBytes(16).toString('hex'),
+  });
+  mcpTransport.onclose = () => {
+    mcpTransport = null;
+  };
+  await mcpServer.connect(mcpTransport);
+}
+
+initMcpTransport().catch(e => console.error('[Central] MCP transport init error:', e));
 
 async function handleMcpRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`);
 
   if (url.pathname === '/mcp' || url.pathname === '/mcp/') {
-    if (req.method === 'GET') {
-      // SSE 连接建立
-      const transport = new SSEServerTransport('/mcp', res);
-      sseTransports.set(transport.sessionId, transport);
-      transport.onclose = () => { sseTransports.delete(transport.sessionId); };
+    // CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, MCP-Session-Id, Last-Event-ID');
+    res.setHeader('Access-Control-Expose-Headers', 'MCP-Session-Id');
 
-      await mcpServer.connect(transport);
-      await transport.start();
-    } else if (req.method === 'POST') {
-      // 消息路由到对应的 SSE transport
-      const sessionId = url.searchParams.get('sessionId');
-      const transport = sessionId ? sseTransports.get(sessionId) : undefined;
-      if (transport) {
-        await transport.handlePostMessage(req, res);
-      } else {
-        res.writeHead(400);
-        res.end('Invalid session');
-      }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (!mcpTransport) {
+      await initMcpTransport();
+    }
+    if (mcpTransport) {
+      await mcpTransport.handleRequest(req, res);
     } else {
-      res.writeHead(405);
-      res.end('Method not allowed');
+      res.writeHead(503);
+      res.end('MCP transport not ready');
     }
   } else if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
