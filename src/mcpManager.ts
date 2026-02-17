@@ -111,6 +111,15 @@ export class McpManager {
       };
 
       const content = JSON.stringify(config, null, 2);
+
+      // 只在配置实际变化时才写入，避免触发 Windsurf 不必要的 MCP 重新加载
+      let existingContent = '';
+      try { existingContent = fs.readFileSync(configPath, 'utf-8'); } catch (_) { /* ignore */ }
+      if (existingContent === content) {
+        console.log(`[DevFlow] MCP config unchanged, skip writing`);
+        return;
+      }
+
       fs.writeFileSync(configPath, content);
       console.log(`[DevFlow] Registered MCP server: ${name} (command mode) in mcp_config.json`);
     } catch (e) {
