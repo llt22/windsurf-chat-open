@@ -11,6 +11,7 @@
   const conversations = new Map();
   let currentPanelId = '';
   let currentToolName = '';
+  let currentPort = '';
   let workspaceRoot = '';
   const MAX_IMAGE_COUNT = 10;
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -231,6 +232,9 @@
     } else if (msg.type === 'setToolName') {
       currentToolName = msg.toolName;
       $('infoToolName').textContent = '🔧 ' + msg.toolName;
+    } else if (msg.type === 'setPort') {
+      currentPort = msg.port;
+      $('infoPort').textContent = '🔌 ' + msg.port;
     } else if (msg.type === 'dismissPrompt') {
       if (msg.requestId) removeConv(msg.requestId);
     } else if (msg.type === 'setWorkspaceRoot') {
@@ -250,6 +254,13 @@
     if (currentPanelId) {
       navigator.clipboard.writeText(currentPanelId).then(() => {
         const el = $('infoPanelId'); const orig = el.textContent; el.textContent = '✅ 已复制'; setTimeout(() => { el.textContent = orig; }, 1500);
+      });
+    }
+  });
+  $('infoPort').addEventListener('click', () => {
+    if (currentPort) {
+      navigator.clipboard.writeText(currentPort).then(() => {
+        const el = $('infoPort'); const orig = el.textContent; el.textContent = '✅ 已复制'; setTimeout(() => { el.textContent = orig; }, 1500);
       });
     }
   });

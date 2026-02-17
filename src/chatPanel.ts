@@ -58,6 +58,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'setToolName', toolName });
   }
 
+  setPort(port: number) {
+    this._view?.webview.postMessage({ type: 'setPort', port: port.toString() });
+  }
+
   private _resetViewReadyPromise() {
     this._isWebviewReady = false;
     this._viewReadyPromise = new Promise<void>((resolve) => {

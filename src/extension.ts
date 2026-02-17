@@ -80,12 +80,13 @@ class ExtensionStateManager {
         const toolName = await this.mcpManager.initialize(this.panelId);
         console.log(`[DevFlow] Tool name: ${toolName}`);
 
-        // 通知面板当前面板ID和工具名
+        // 通知面板当前面板ID、工具名和端口号
+        const port = this.mcpManager.getPort();
         this.panelProvider.setPanelId(this.panelId);
         this.panelProvider.setToolName(toolName);
+        this.panelProvider.setPort(port);
 
         // 连接 Central Server
-        const port = this.mcpManager.getPort();
         this.wsClient = new WsClient(this.panelId, toolName, port);
         this.wsClient.setMessageHandler((msg) => this.handleWsMessage(msg));
 
