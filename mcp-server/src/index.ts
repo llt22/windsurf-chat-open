@@ -17,6 +17,12 @@ const RECONNECT_DELAY = 2000;
 const MAX_RETRIES = 5;
 const MSG_TIMEOUT = 30000;
 
+// 启动诊断：写标记文件，确认 Windsurf 是否 spawn 了本进程
+const DIAG_FILE = path.join(require('os').tmpdir(), `devflow-mcp-started-${WS_PORT}.txt`);
+try {
+  fs.writeFileSync(DIAG_FILE, `started at ${new Date().toISOString()}\npid=${process.pid}\ntool=${process.env.DEVFLOW_TOOL_NAME}\nport=${WS_PORT}\n`);
+} catch (_) { /* ignore */ }
+
 let currentToolName = process.env.DEVFLOW_TOOL_NAME || 'dev_mcp';
 let wsConnection: WebSocket | null = null;
 let waitResolve: ((value: any) => void) | null = null;

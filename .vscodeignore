@@ -5,4 +5,3 @@
 !dist/extension.js
 !dist/webview/**
 !bundled/central-server/**
-!bundled/mcp-server/**

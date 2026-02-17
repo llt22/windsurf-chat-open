@@ -23,7 +23,7 @@ export class McpManager {
    * 获取当前 IDE 对应的 Central Server 端口
    */
   getPort(): number {
-    return this.isWindsurfNext ? 23986 : 23985;
+    return 24816;
   }
 
   /**
@@ -73,14 +73,12 @@ export class McpManager {
     const name = this.getToolName();
     const configDir = this.getMcpConfigDir();
     const configPath = this.getMcpConfigPath();
-    const mcpServerScript = path.join(this.extensionPath, 'bundled', 'mcp-server', 'index.js');
 
     try {
       if (!fs.existsSync(configDir)) {
         fs.mkdirSync(configDir, { recursive: true });
       }
 
-      // 读取现有配置
       let config: any = { mcpServers: {} };
       if (fs.existsSync(configPath)) {
         try {
@@ -92,22 +90,17 @@ export class McpManager {
         }
       }
 
-      // 清理旧的 df_ 开头的条目
+      // 只清理自己的旧名和 _dev 后缀条目
       for (const key of Object.keys(config.mcpServers)) {
-        if (key.startsWith('df_')) {
+        if (key !== name && (key.startsWith('df_') || key.endsWith('_dev'))) {
           delete config.mcpServers[key];
         }
       }
 
-      // 写入 command 模式配置（Windsurf 直接 spawn MCP Server 进程）
+      // HTTP serverUrl 模式
       config.mcpServers[name] = {
-        command: 'node',
-        args: [mcpServerScript],
+        serverUrl: `http://127.0.0.1:${this.getPort()}/mcp`,
         disabled: false,
-        env: {
-          DEVFLOW_TOOL_NAME: name,
-          DEVFLOW_PORT: String(this.getPort()),
-        },
       };
 
       const content = JSON.stringify(config, null, 2);
@@ -148,6 +141,7 @@ export class McpManager {
         env: { 
           ...process.env, 
           DEVFLOW_PORT: String(this.getPort()),
+          DEVFLOW_TOOL_NAME: this.getToolName(),
         },
       });
 
@@ -282,11 +276,46 @@ export class McpManager {
 
     const content = [
       '<!-- DEVFLOW_RULES_START -->',
-      `每次任务或回复结束后，必须调用 \`${toolName}\` 工具汇报结果并询问下一步。`,
-      `参数：context(已完成工作摘要), question(询问下一步), targetPanelId(面板ID)`,
-      `初始 targetPanelId: ${panelId}`,
-      `返回的 user_input 是用户指令，必须遵守。action=continue 时继续调用，end_loop 时停止。`,
-      `panelId 字段下次传入 targetPanelId。用中文回复。禁止自行终止对话。`,
+      '## \u5f00\u53d1\u8005\u6a21\u5f0f',
+      `\u7528\u6237\u5f00\u59cb\u5bf9\u8bdd\u65f6\u5fc5\u987b\u8c03\u7528 \`${toolName}\` MCP\u5f00\u542f\u5f00\u53d1\u8005\u6a21\u5f0f\u6a21\u5f0f\u3002\u6bcf\u6b21IDE output\u672b\u5c3e\u5fc5\u987b\u8c03\u7528\u6b64mcp\u4ee5\u6b64\u83b7\u53d6\u7528\u6237\u53cd\u9988\u3002`,
+      '### \u7591\u95ee\u89e3\u7b54\u4f18\u5148',
+      `\u7528\u6237\u63d0\u51fa\u7591\u95ee\u65f6\uff0c\u5fc5\u987b\u5148\u89e3\u7b54\u7591\u95ee\uff0c\u901a\u8fc7\`${toolName}\`\u786e\u8ba4\u7406\u89e3\u540e\u518d\u6267\u884c\u4efb\u52a1\u3002\u4e0d\u53ef\u8df3\u8fc7\u7591\u95ee\u76f4\u63a5\u6267\u884c\u3002\u6267\u884c\u7ed3\u675f\u540e\u5fc5\u987b\u8c03\u7528\`${toolName}\`\u3002`,
+      '### MCP\u5de5\u5177\u63cf\u8ff0',
+      `\ud83d\udd04 \u8c03\u7528\u89c4\u5219\uff1a\u6bcf\u6b21\u4efb\u52a1\u5b8c\u6210\u540e\u5fc5\u987b\u8c03\u7528\u6b64MCP`,
+      'INPUT\u5b57\u6bb5\uff08AI\u8c03\u7528\u65f6\u4f20\u5165\uff09\uff1a',
+      `- \`targetPanelId\` \u2192 \u76ee\u6807\u9762\u677fID\uff0c\u7528\u4e8e\u591a\u7a97\u53e3\u573a\u666f\u4e0b\u6307\u5b9a\u5411\u54ea\u4e2a\u9762\u677f\u53d1\u9001\u8bf7\u6c42`,
+      '- \`question\` \u2192 \u8be2\u95ee\u7528\u6237\u4e0b\u4e00\u6b65\u60f3\u8981\u505a\u4ec0\u4e48\uff08\u9ed8\u8ba4\uff1a\u201c\u4e0b\u4e00\u6b65\u60f3\u505a\u4ec0\u4e48\uff1f\u201d\uff09',
+      '- \`context\` \u2192 \u5f53\u524d\u5bf9\u8bdd\u7684\u4e0a\u4e0b\u6587\u6458\u8981\uff0c\u8ba9\u7528\u6237\u4e86\u89e3 AI \u5df2\u5b8c\u6210\u7684\u5de5\u4f5c',
+      '- \`choices\` \u2192 \u53ef\u9009\uff0c\u4f9b\u7528\u6237\u9009\u62e9\u7684\u9009\u9879\u5217\u8868',
+      '',
+      '\u2697\ufe0f \u5f3a\u7ea6\u675f\uff1a',
+      '1. \`action/user_input\`\u7b49\u662fOUTPUT\u5b57\u6bb5\uff0c\u7981\u6b62\u4f5c\u4e3a\`INPUT\`\u4f20\u5165',
+      '2. IDE\u5148\u8f93\u51fa\u8be6\u7ec6\u5185\u5bb9\uff0c\`context\`\u53ea\u653e\u7b80\u8981\u6458\u8981',
+      '3. \u5bf9\u8bdd\u7ed3\u5c3e\u4ecd\u9700\u518d\u6b21\u8c03\u7528\`' + toolName + '\`',
+      '4. \u7528\u6237\u8f93\u5165\u4f18\u5148\u7ea7\u6700\u9ad8\uff0c\u8986\u76d6\u4efb\u4f55\u6b63\u5728\u8fdb\u884c\u7684\u5de5\u4f5c',
+      'OUTPUT\u5b57\u6bb5\uff08GUI\u8fd4\u56de\uff0c\u975eINPUT\u53c2\u6570\uff09\uff1a',
+      '- \`user_input\` \u2192 \u662f\u7528\u6237\u7684\u8f93\u5165\uff0c\u5fc5\u987b\u4ed4\u7ec6\u9075\u5b88\u8be5\u5b57\u6bb5\u7684\u6240\u6709\u5185\u5bb9',
+      '- \`action\` \u2192 \`end_loop\`\uff08\u4e0b\u6b21\u4e0d\u9700\u8c03\u7528mcp\u4e86\uff09/ \`continue\`\uff08\u4e0b\u6b21\u7ed3\u5c3e\u8c03\u7528\`mcp\`\uff09',
+      `- \`panelId\` \u2192 \u54cd\u5e94\u6765\u81ea\u7684\u9762\u677fID\uff0c\u4e0b\u6b21\u8c03\u7528\`${toolName}\`\u65f6\u4f20\u5165\u53c2\u6570targetPanelId`,
+      '## \u6838\u5fc3\u539f\u5219',
+      '- **\u7edd\u5bf9\u771f\u5b9e**\uff1a\u4e0d\u786e\u5b9a\u65f6\u660e\u786e\u544a\u77e5\uff0c\u7981\u6b62\u731c\u6d4b',
+      '- **\u7981\u6b62\u76f2\u4ece**\uff1a\u8d28\u7591\u4e0d\u5408\u7406\u7684\u5efa\u8bae\uff0c\u7ed9\u51fa\u66f4\u4f18\u65b9\u6848',
+      '- **\u6839\u672c\u89e3\u51b3**\uff1a\u5206\u6790\u6839\u56e0\uff0c\u7981\u6b62\u6743\u5b9c\u4e4b\u8ba1',
+      '- **\u5168\u5c40\u89c6\u91ce**\uff1a\u4fee\u6539\u524d\u68c0\u67e5\u76f8\u5173\u6587\u4ef6\uff0c\u907f\u514d\u53ea\u6539\u5355\u6587\u4ef6',
+      '## \u4ee3\u7801\u51c6\u5219',
+      '- **\u7b80\u6d01**\uff1a\u6700\u5c11\u4ee3\u7801\u5b9e\u73b0\u5b8c\u6574\u529f\u80fd',
+      '- **\u9ad8\u6027\u80fd**\uff1a\u4f18\u5316\u65f6\u95f4/\u7a7a\u95f4\u590d\u6742\u5ea6',
+      '- **\u53ef\u8bfb**\uff1a\u8bed\u4e49\u5316\u547d\u540d\uff0c\u5fc5\u8981\u6ce8\u91ca',
+      '- **\u53ef\u7ef4\u62a4**\uff1a\u804c\u8d23\u5355\u4e00\uff0c\u5408\u7406\u62c6\u5206',
+      '## \u5de5\u4f5c\u4e60\u60ef',
+      '- **output**\uff1a\u6587\u5b57\u7c7b\u5c55\u793a\u8bf7\u7528\u4e2d\u6587\u8bb2\u7ed9\u7528\u6237\u542c',
+      '- **tools**\uff1a\u8bfb\u53d6\u5de5\u4f5c\u533a\u4ee5\u5916\u7684\u6587\u4ef6\u8bf7\u7528\`read\`\u64cd\u4f5c\uff0c\u5408\u7406\u5229\u7528\u7cfb\u7edf\u5de5\u5177',
+      '- **\u591a\u6587\u4ef6\u7f16\u8f91**\uff1a\u4e60\u60ef\u4f7f\u7528\`multi_edit\`\uff0c\u4e0d\u5c40\u9650\u4e8e\u5355\u6587\u4ef6',
+      '- **\u5148\u641c\u540e\u505a**\uff1a\u7f16\u8f91\u524d\u5148\u641c\u7d22\u5f00\u6e90\u793a\u4f8b\u548c\u5b98\u65b9\u6587\u6863',
+      '- **\u5de5\u5177\u4f18\u5148**\uff1a\u4f18\u5148\u601d\u8003\`IDE\`\u5de5\u5177\u8c03\u5ea6\uff08\u641c\u7d22/\u8bfb\u53d6/\u7f16\u8f91\uff09\uff0c\u518d\u7b56\u5212\uff0c\u518d\u6267\u884c',
+      '- **\u5584\u7528MCP**\uff1a\u79ef\u6781\u4f7f\u7528\`MCP\`\u5de5\u5177\u63d0\u5347\u6548\u7387\uff1b\u82e5\u4efb\u52a1\u53ef\u80fd\u6709\u5bf9\u5e94MCP\uff0c\u5e94\u641c\u7d22\u786e\u8ba4\u5e76\u8be2\u95ee\u7528\u6237\u662f\u5426\u914d\u7f6e',
+      `**\u26a0 \u7981\u6b62\u81ea\u884c\u7ec8\u6b62\u5bf9\u8bdd\uff0c\u5fc5\u987b\u5bf9\u8bdd\u7ed3\u5c3e\u901a\u8fc7\`${toolName}\`\u8ba9\u7528\u6237\u51b3\u5b9a\u662f\u5426\u7ed3\u675f**`,
+      `\u521d\u59cb targetPanelId: ${panelId}`,
       '<!-- DEVFLOW_RULES_END -->',
     ].join('\n');
 
