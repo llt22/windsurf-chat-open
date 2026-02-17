@@ -150,7 +150,6 @@ export class McpManager {
           ...process.env, 
           DEVFLOW_TOOL_NAME: this.getToolName(), 
           DEVFLOW_PORT: String(this.getPort()),
-          DEVFLOW_MCP_TIMEOUT: process.env.DEVFLOW_MCP_TIMEOUT || '600000', // 默认 10 分钟，可通过环境变量覆盖
         },
       });
 

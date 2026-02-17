@@ -17,7 +17,6 @@ import * as crypto from 'crypto';
 
 const PORT = parseInt(process.env.DEVFLOW_PORT || '23985', 10);
 const HEARTBEAT_INTERVAL = 30000;
-const MCP_TIMEOUT_MS = parseInt(process.env.DEVFLOW_MCP_TIMEOUT || '600000', 10); // 默认 10 分钟
 
 const currentToolName = process.env.DEVFLOW_TOOL_NAME || 'dev_mcp';
 
@@ -299,13 +298,7 @@ class CentralServer {
 
       console.error(`[DevFlow Central] Wait request ${requestId} → panel ${targetPanel.panelId}`);
 
-      // 超时（可配置，默认 10 分钟）
-      setTimeout(() => {
-        if (this.pendingMcpCalls.has(requestId)) {
-          this.pendingMcpCalls.delete(requestId);
-          reject(new Error('等待用户响应超时'));
-        }
-      }, MCP_TIMEOUT_MS);
+      // 不设置超时，等待用户响应（面板关闭时会自动清理）
     });
   }
 
