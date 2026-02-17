@@ -46,6 +46,12 @@ class ExtensionStateManager {
       })
     );
 
+    // 面板「配置MCP」按钮 → 写入 mcp_config.json
+    this.panelProvider.onConfigureMcp(() => {
+      this.mcpManager.writeMcpConfig();
+      vscode.window.showInformationMessage('DevFlow: MCP 配置已写入，请在 Windsurf MCP 设置页面刷新查看');
+    });
+
     // 面板用户响应 → 转发给 Central Server
     this.panelProvider.onUserResponse((response) => {
       if (this.wsClient && response.requestId) {

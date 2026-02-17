@@ -287,12 +287,12 @@
     });
   });
 
-  // == Regenerate Tool Name ==
-  $('regenerateBtn').addEventListener('click', () => {
-    vscode.postMessage({ type: 'regenerate' });
-    const btn = $('regenerateBtn');
-    btn.textContent = '✅';
-    setTimeout(() => { btn.textContent = '🔄'; }, 2000);
+  // == Configure MCP ==
+  $('configureMcpBtn').addEventListener('click', () => {
+    vscode.postMessage({ type: 'configureMcp' });
+    const btn = $('configureMcpBtn');
+    btn.textContent = '✅ 已配置';
+    setTimeout(() => { btn.textContent = '⚙️ 配置MCP'; }, 2000);
   });
 
   vscode.postMessage({ type: 'ready' });

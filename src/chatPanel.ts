@@ -23,7 +23,7 @@ export interface UserResponse {
 }
 
 interface WebviewMessage {
-  type: 'ready' | 'continue' | 'end' | 'submit' | 'getWorkspaceRoot' | 'regenerate';
+  type: 'ready' | 'continue' | 'end' | 'submit' | 'getWorkspaceRoot' | 'configureMcp';
   text?: string;
   images?: string[];
   files?: Array<{ name: string; path: string; size: number }>;
@@ -34,6 +34,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _onUserResponse = new vscode.EventEmitter<UserResponse>();
   public onUserResponse = this._onUserResponse.event;
+  private _onConfigureMcp = new vscode.EventEmitter<void>();
+  public onConfigureMcp = this._onConfigureMcp.event;
   private _viewReadyResolve?: () => void;
   private _viewReadyPromise?: Promise<void>;
   private _isWebviewReady: boolean = false;
@@ -124,8 +126,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
           this._view?.webview.postMessage({ type: 'setWorkspaceRoot', workspaceRoot: folders[0].uri.fsPath });
         }
         break;
-      case 'regenerate':
-        // toolName 已固定，不再支持重新生成
+      case 'configureMcp':
+        this._onConfigureMcp.fire();
         break;
     }
   }
