@@ -113,13 +113,6 @@ export class McpManager {
       const content = JSON.stringify(config, null, 2);
       fs.writeFileSync(configPath, content);
       console.log(`[DevFlow] Registered MCP server: ${name} (command mode) in mcp_config.json`);
-
-      // 延迟二次写入，确保 Windsurf 的文件 watcher 能检测到变化
-      setTimeout(() => {
-        try {
-          fs.writeFileSync(configPath, content);
-        } catch (_) { /* ignore */ }
-      }, 2000);
     } catch (e) {
       console.error('[DevFlow] Failed to write mcp_config.json:', e);
     }
