@@ -308,8 +308,11 @@ export class McpManager {
     const memoriesDir = path.join(this.getMcpConfigDir(), 'memories');
     const rulesPath = path.join(memoriesDir, 'global_rules.md');
 
+    const startMarker = '<!-- TASK_POOL_RULES_START -->';
+    const endMarker = '<!-- TASK_POOL_RULES_END -->';
+
     const content = [
-      '<!-- DEVFLOW_RULES_START -->',
+      startMarker,
       '## \u5f00\u53d1\u8005\u6a21\u5f0f',
       `\u7528\u6237\u5f00\u59cb\u5bf9\u8bdd\u65f6\u5fc5\u987b\u8c03\u7528 \`${toolName}\` MCP\u5f00\u542f\u5f00\u53d1\u8005\u6a21\u5f0f\u6a21\u5f0f\u3002\u6bcf\u6b21IDE output\u672b\u5c3e\u5fc5\u987b\u8c03\u7528\u6b64mcp\u4ee5\u6b64\u83b7\u53d6\u7528\u6237\u53cd\u9988\u3002`,
       '### \u7591\u95ee\u89e3\u7b54\u4f18\u5148',
@@ -327,6 +330,7 @@ export class McpManager {
       '2. IDE\u5148\u8f93\u51fa\u8be6\u7ec6\u5185\u5bb9\uff0c\`context\`\u53ea\u653e\u7b80\u8981\u6458\u8981',
       '3. \u5bf9\u8bdd\u7ed3\u5c3e\u4ecd\u9700\u518d\u6b21\u8c03\u7528\`' + toolName + '\`',
       '4. \u7528\u6237\u8f93\u5165\u4f18\u5148\u7ea7\u6700\u9ad8\uff0c\u8986\u76d6\u4efb\u4f55\u6b63\u5728\u8fdb\u884c\u7684\u5de5\u4f5c',
+      '5. \u5982\u679c\u7528\u6237\u4e2d\u65ad\u4e86\u4f60\u7684\`\u547d\u4ee4\u884c\u7ec8\u7aef\`\u64cd\u4f5c\uff0c\u5fc5\u987b\u7acb\u523b\u53d1\u8d77\`mcp\`\u8be2\u95ee\u7528\u6237\u4e3a\u4ec0\u4e48\uff0c\u53ef\u80fd\u7528\u6237\u662f\u60f3\u963b\u6b62\u4f60\u7684\u7834\u574f\u6027\u64cd\u4f5c',
       'OUTPUT\u5b57\u6bb5\uff08GUI\u8fd4\u56de\uff0c\u975eINPUT\u53c2\u6570\uff09\uff1a',
       '- \`user_input\` \u2192 \u662f\u7528\u6237\u7684\u8f93\u5165\uff0c\u5fc5\u987b\u4ed4\u7ec6\u9075\u5b88\u8be5\u5b57\u6bb5\u7684\u6240\u6709\u5185\u5bb9',
       '- \`action\` \u2192 \`end_loop\`\uff08\u4e0b\u6b21\u4e0d\u9700\u8c03\u7528mcp\u4e86\uff09/ \`continue\`\uff08\u4e0b\u6b21\u7ed3\u5c3e\u8c03\u7528\`mcp\`\uff09',
@@ -350,7 +354,7 @@ export class McpManager {
       '- **\u5584\u7528MCP**\uff1a\u79ef\u6781\u4f7f\u7528\`MCP\`\u5de5\u5177\u63d0\u5347\u6548\u7387\uff1b\u82e5\u4efb\u52a1\u53ef\u80fd\u6709\u5bf9\u5e94MCP\uff0c\u5e94\u641c\u7d22\u786e\u8ba4\u5e76\u8be2\u95ee\u7528\u6237\u662f\u5426\u914d\u7f6e',
       `**\u26a0 \u7981\u6b62\u81ea\u884c\u7ec8\u6b62\u5bf9\u8bdd\uff0c\u5fc5\u987b\u5bf9\u8bdd\u7ed3\u5c3e\u901a\u8fc7\`${toolName}\`\u8ba9\u7528\u6237\u51b3\u5b9a\u662f\u5426\u7ed3\u675f**`,
       `\u521d\u59cb targetPanelId: ${panelId}`,
-      '<!-- DEVFLOW_RULES_END -->',
+      endMarker,
     ].join('\n');
 
     try {
@@ -358,14 +362,21 @@ export class McpManager {
         fs.mkdirSync(memoriesDir, { recursive: true });
       }
 
-      // 读取现有内容，替换或追加 DevFlow 规则
       let existing = '';
       if (fs.existsSync(rulesPath)) {
         existing = fs.readFileSync(rulesPath, 'utf-8');
       }
 
-      const startMarker = '<!-- DEVFLOW_RULES_START -->';
-      const endMarker = '<!-- DEVFLOW_RULES_END -->';
+      // 清理旧的 DEVFLOW 标记（如果存在）
+      const oldStart = '<!-- DEVFLOW_RULES_START -->';
+      const oldEnd = '<!-- DEVFLOW_RULES_END -->';
+      const oldStartIdx = existing.indexOf(oldStart);
+      const oldEndIdx = existing.indexOf(oldEnd);
+      if (oldStartIdx !== -1 && oldEndIdx !== -1) {
+        existing = existing.substring(0, oldStartIdx) + existing.substring(oldEndIdx + oldEnd.length);
+      }
+
+      // 替换或追加 TASK_POOL 标记区域
       const startIdx = existing.indexOf(startMarker);
       const endIdx = existing.indexOf(endMarker);
 
